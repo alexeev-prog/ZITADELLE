@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod, abstractproperty
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from random import randint
 from rich import print
@@ -29,26 +29,58 @@ class Item(ABC):
 
 
 class Weapon(Item):
-	def __init__(self, name: str, damage: int, initial_brokenness=0.0, breaking_value: float=1.0):
+	def __init__(
+		self,
+		name: str,
+		damage: int,
+		level: int = 1,
+		initial_brokenness=0.0,
+		breaking_value: float = 1.0,
+	):
 		self.name = name
-		self.damage = damage
 		self.initial_brokenness = initial_brokenness
 		self.breaking_value = breaking_value
-		self.description = f'Оружие {self.name}: {self.get_brokenness_state()}'
+		self.level = level
+
+		if self.level == 1:
+			self.name = f'Поломанный {self.name}'
+		elif self.level == 2:
+			self.name = f'Ржавый {self.name}'
+		elif self.level == 3:
+			self.name = f'Старый {self.name}'
+		elif self.level == 4:
+			self.name = f'Обычный {self.name}'
+		elif self.level == 5:
+			self.name = f'Редкий {self.name}'
+		elif self.level == 6:
+			self.name = f'Хороший {self.name}'
+		elif self.level == 7:
+			self.name = f'Отличный {self.name}'
+		elif self.level == 8:
+			self.name = f'Мифический {self.name}'
+		elif self.level == 9:
+			self.name = f'Легендарный {self.name}'
+
+		try:
+			self.damage = max([1, damage * level // (self.initial_brokenness // 50)])
+		except ZeroDivisionError:
+			self.damage = 1
+
+		self.name = f"{self.name} ({self.get_brokenness_state()})"
 
 	def get_brokenness_state(self):
-		state = 'Идеал'
+		state = "Идеал"
 
 		if self.initial_brokenness >= 10.0 and self.initial_brokenness <= 25.0:
-			state = 'Как новый'
+			state = "Как новый"
 		elif self.initial_brokenness >= 25.0 and self.initial_brokenness <= 50.0:
-			state = 'Б/У'
+			state = "Б/У"
 		elif self.initial_brokenness >= 50.0 and self.initial_brokenness <= 75.0:
-			state = 'Старый'
+			state = "Старый"
 		elif self.initial_brokenness >= 75.0 and self.initial_brokenness <= 90.0:
-			state = 'Разваливающийся'
+			state = "Разваливающийся"
 		elif self.initial_brokenness > 90.0:
-			state = 'Сломанный'
+			state = "Сломанный"
 
 		return state
 
@@ -56,7 +88,9 @@ class Weapon(Item):
 		self.initial_brokenness -= self.breaking_value
 
 	def repair(self):
+		self.damage = self.damage * int(self.initial_brokenness // 50)
 		self.initial_brokenness = 0.0
+		self.name = f"{self.name} ({self.get_brokenness_state()})"
 
 
 @dataclass
@@ -66,7 +100,7 @@ class AttackSpell:
 	mana_cost: float
 	spell_damage: float
 	negative_effect: str = None
-	spell_type: str = 'ATTACK'
+	spell_type: str = "ATTACK"
 
 
 @dataclass
@@ -75,7 +109,16 @@ class HealthSpell:
 	spell_desc: str
 	mana_cost: float
 	healing: float
-	spell_type: str = 'HEALTH'
+	spell_type: str = "HEALTH"
+
+
+@dataclass
+class ManaSpell:
+	spell_name: str
+	spell_desc: str
+	mana: float
+	spell_type: str = "MANA"
+	mana_cost: float = 0.0
 
 
 class Enemy(Entity):
@@ -86,24 +129,28 @@ class Enemy(Entity):
 		if self.danger_level == 1:
 			self.name = name
 		elif self.danger_level == 2:
-			self.name = f'Злой {name}'
+			self.name = f"Злой {name}"
 		elif self.danger_level == 3:
-			self.name = f'Гига{name.lower()}'
+			self.name = f"Гига{name.lower()}"
 		elif self.danger_level == 4:
-			self.name = f'Кровавый {name.lower()}'
+			self.name = f"Кровавый {name.lower()}"
 		elif self.danger_level == 5:
-			self.name = f'Темный {name.lower()}'
+			self.name = f"Темный {name.lower()}"
 		elif self.danger_level == 6:
-			self.name = f'Владыка хаоса {name}'
+			self.name = f"Владыка хаоса {name}"
 
 		self.hp = (randint(10, 100) * self.player.lvl * self.danger_level) * multiplier
-		self.damage = (randint(1, 10) * self.player.lvl * self.danger_level) * multiplier
+		self.damage = (
+			randint(1, 10) * self.player.lvl * self.danger_level
+		) * multiplier
 
 		self.negative_effects = {}
 
 	def apply_negative_effect(self, effect_name: str, effect_damage: str):
-		self.negative_effects[f'{effect_name}@{len(self.negative_effects)}'] = effect_damage
-	
+		self.negative_effects[f"{effect_name}@{len(self.negative_effects)}"] = (
+			effect_damage
+		)
+
 	@property
 	def damage_attack(self):
 		self.damage = randint(1, 10) * self.player.lvl * self.danger_level
@@ -117,24 +164,31 @@ class Enemy(Entity):
 
 
 class Player(Entity):
-	def __init__(self, name: str, race: str, initial_hp: float=100.0, initial_weapon: Weapon=Weapon('Ржавый кинжал', 10, 25.0)):
+	def __init__(
+		self,
+		name: str,
+		race: str,
+		initial_hp: float = 100.0,
+		initial_weapon: Weapon = Weapon("Медный кинжал", 10, initial_brokenness=50.0),
+	):
 		self.initial_weapon = initial_weapon
 		self.name = name
 		self.lvl = 1
+		self.xp = 0
 		self.hp = initial_hp
 		self.race = race.lower()
 
-		self.power = randint(3, 10) + 3 if self.race == 'орк' else randint(1, 10)
-		self.agility = randint(3, 10) + 3 if self.race == 'хоббит' else randint(1, 10)
-		self.wisdom = randint(3, 10) + 3 if self.race == 'эльф' else randint(1, 10)
+		self.power = randint(3, 10) + 3 if self.race == "орк" else randint(1, 10)
+		self.agility = randint(3, 10) + 3 if self.race == "хоббит" else randint(1, 10)
+		self.wisdom = randint(3, 10) + 3 if self.race == "эльф" else randint(1, 10)
 
-		if self.race == 'человек':
+		if self.race == "человек":
 			self.power = randint(2, 10) + 1
 			self.agility = randint(2, 10) + 1
 			self.wisdom = randint(2, 10) + 1
-		elif self.race == 'хоббит':
+		elif self.race == "хоббит":
 			self.money = 10 * self.agility
-		elif self.race == 'орк':
+		elif self.race == "орк":
 			self.initial_weapon.damage *= 2
 
 		self.money = 2 * self.agility * self.lvl * 2
@@ -147,26 +201,191 @@ class Player(Entity):
 
 		self.inventory = {}
 		self.spells = {
-			'Фаерболл': AttackSpell(spell_name='Фаерболл', spell_desc='Наносит огромный урон, но требует большой сосредоточенности', mana_cost=100.0, spell_damage=50.0),
-			'Звон кладбища': AttackSpell(negative_effect='necromancy', spell_name='Звон кладбища', spell_desc='Темное заклинание некромантов. Высасывает силы из существа, пока оно не иссхонет.', mana_cost=25.0, spell_damage=5.0),
-			'Ядовитый дым': AttackSpell(negative_effect='poison', spell_name='Ядовитый дым', spell_desc='Дешевое заклинание, наносит мало урона, но с каждым ходом урон удваивается из-за эффекта отравления.', mana_cost=10.0, spell_damage=0.5),
-			'Магическая стрела': AttackSpell(spell_name='Магическая стрела', spell_desc='Обычное заклинание, наносит немного урона, зато пробивает броню', mana_cost=25.0, spell_damage=10.0),
-			'Превозмогание': HealthSpell(spell_name='Превозмогание', spell_desc='Вы собираете свои силы и превозмогаете любую боль', mana_cost=15.0, healing=20.0)
+			"ФАЕРБОЛЛ": AttackSpell(
+				spell_name="Фаерболл",
+				spell_desc="Наносит огромный урон, но требует большой сосредоточенности",
+				mana_cost=100.0 * self.lvl,
+				spell_damage=100.0 * self.lvl,
+			),
+			"ЗЛАЯ НАСМЕШКА": AttackSpell(
+				spell_name='Злая насмешка',
+				spell_desc='Унижает вашего врага. Настолько, что он кричит от боли',
+				mana_cost=10.0 * self.lvl,
+				spell_damage=10.0 * self.lvl,
+			),
+			"ЗВОН КЛАДБИЩА": AttackSpell(
+				negative_effect="necromancy",
+				spell_name="Звон кладбища",
+				spell_desc="Темное заклинание некромантов. Высасывает силы из существа, пока оно не иссхонет.",
+				mana_cost=70.0 * self.lvl,
+				spell_damage=5.0 * self.lvl,
+			),
+			"ЯДОВИТЫЙ ДЫМ": AttackSpell(
+				negative_effect="poison",
+				spell_name="Ядовитый дым",
+				spell_desc="Дешевое заклинание, наносит мало урона, но с каждым ходом урон удваивается из-за эффекта отравления.",
+				mana_cost=10.0 * self.lvl,
+				spell_damage=0.5 * self.lvl,
+			),
+			"МАГИЧЕСКАЯ СТРЕЛА": AttackSpell(
+				spell_name="Магическая стрела",
+				spell_desc="Обычное заклинание, наносит немного урона, зато пробивает броню",
+				mana_cost=25.0 * self.lvl,
+				spell_damage=20.0 * self.lvl,
+			),
+			"ПРЕВОЗМОГАНИЕ": HealthSpell(
+				spell_name="Превозмогание",
+				spell_desc="Вы собираете свои силы и превозмогаете любую боль",
+				mana_cost=15.0 * self.lvl,
+				healing=20.0 * self.lvl,
+			),
+			"ЯД ДРАКОНОВ": AttackSpell(
+				negative_effect="poison",
+				spell_name="Яд драконов",
+				spell_desc="Дорогое заклинание, наносит меньше урона чем боевые, но с каждым ходом урон удваивается из-за эффекта отравления.",
+				mana_cost=100.0 * self.lvl,
+				spell_damage=10.0 * self.lvl,
+			),
+			"ВЕЛИКОЕ ПРЕВОЗМОГАНИЕ": HealthSpell(
+				spell_name="Великое превозмогание",
+				spell_desc="Теперь вы можете стерпеть любую боль, любая рана для вас синяк",
+				mana_cost=150.0 * self.lvl,
+				healing=100.0 * self.lvl,
+			),
+			"МАЛОЕ ЗАПИТЫВАНИЕ": ManaSpell(
+				spell_name='Малое запитывание',
+				spell_desc='Вы запитываетесь маной из окружающей среды. Быстро, но мало',
+				mana=20.0 * self.lvl,
+			),
+			"СРЕДНЕЕ ЗАПИТЫВАНИЕ": ManaSpell(
+				spell_name='Среднее запитывание',
+				spell_desc='Вы запитываетесь маной из окружающей среды. Должно хватить',
+				mana=75.0 * self.lvl,
+				mana_cost=25.0 * self.lvl
+			),
+			"ВЕЛИКОЕ ЗАПИТЫВАНИЕ": ManaSpell(
+				spell_name='Великое запитывание',
+				spell_desc='Вы запитываетесь маной из окружающей среды. Требует концентрации',
+				mana=125.0 * self.lvl,
+				mana_cost=50.0 * self.lvl
+			)
 		}
 
+	def calc_damage(self):
+		if self.race == "эльф":
+			self.damage //= 2
+		elif self.race == "орк":
+			self.damage *= 3
+		elif self.race == "хоббит":
+			self.damage //= 2
+
+	def level_up(self):
+		self.lvl += 1
+		print(f'{">" * 8} LEVEL UP {"<" * 8}')
+		print(f'Новый уровень: {self.lvl}')
+
+		self.spells = {
+			"ФАЕРБОЛЛ": AttackSpell(
+				spell_name="Фаерболл",
+				spell_desc="Наносит огромный урон, но требует большой сосредоточенности",
+				mana_cost=100.0 * self.lvl,
+				spell_damage=100.0 * self.lvl,
+			),
+			"ЗЛАЯ НАСМЕШКА": AttackSpell(
+				spell_name='Злая насмешка',
+				spell_desc='Унижает вашего врага. Настолько, что он кричит от боли',
+				mana_cost=10.0 * self.lvl,
+				spell_damage=10.0 * self.lvl,
+			),
+			"ЗВОН КЛАДБИЩА": AttackSpell(
+				negative_effect="necromancy",
+				spell_name="Звон кладбища",
+				spell_desc="Темное заклинание некромантов. Высасывает силы из существа, пока оно не иссхонет.",
+				mana_cost=70.0 * self.lvl,
+				spell_damage=5.0 * self.lvl,
+			),
+			"ЯДОВИТЫЙ ДЫМ": AttackSpell(
+				negative_effect="poison",
+				spell_name="Ядовитый дым",
+				spell_desc="Дешевое заклинание, наносит мало урона, но с каждым ходом урон удваивается из-за эффекта отравления.",
+				mana_cost=10.0 * self.lvl,
+				spell_damage=1.0 * self.lvl,
+			),
+			"ЯД ДРАКОНОВ": AttackSpell(
+				negative_effect="poison",
+				spell_name="Яд драконов",
+				spell_desc="Дорогое заклинание, наносит меньше урона чем боевые, но с каждым ходом урон удваивается из-за эффекта отравления.",
+				mana_cost=100.0 * self.lvl,
+				spell_damage=10.0 * self.lvl,
+			),
+			"МАГИЧЕСКАЯ СТРЕЛА": AttackSpell(
+				spell_name="Магическая стрела",
+				spell_desc="Обычное заклинание, наносит немного урона, зато пробивает броню",
+				mana_cost=25.0 * self.lvl,
+				spell_damage=20.0 * self.lvl,
+			),
+			"ПРЕВОЗМОГАНИЕ": HealthSpell(
+				spell_name="Превозмогание",
+				spell_desc="Вы собираете свои силы и превозмогаете любую боль",
+				mana_cost=15.0 * self.lvl,
+				healing=20.0 * self.lvl,
+			),
+			"ВЕЛИКОЕ ПРЕВОЗМОГАНИЕ": HealthSpell(
+				spell_name="Великое превозмогание",
+				spell_desc="Теперь вы можете стерпеть любую боль, любая рана для вас синяк",
+				mana_cost=150.0 * self.lvl,
+				healing=100.0 * self.lvl,
+			),
+			"МАЛОЕ ЗАПИТЫВАНИЕ": ManaSpell(
+				spell_name='Малое запитывание',
+				spell_desc='Вы запитываетесь маной из окружающей среды. Быстро, но мало',
+				mana=20.0 * self.lvl,
+			),
+			"СРЕДНЕЕ ЗАПИТЫВАНИЕ": ManaSpell(
+				spell_name='Среднее запитывание',
+				spell_desc='Вы запитываетесь маной из окружающей среды. Должно хватить',
+				mana=75.0 * self.lvl,
+				mana_cost=25.0 * self.lvl
+			),
+			"ВЕЛИКОЕ ЗАПИТЫВАНИЕ": ManaSpell(
+				spell_name='Великое запитывание',
+				spell_desc='Вы запитываетесь маной из окружающей среды. Требует концентрации',
+				mana=125.0 * self.lvl,
+				mana_cost=50.0 * self.lvl
+			)
+		}
+		self.xp = 0
+
+		if self.race == 'эльф':
+			self.mana *= 2
+			self.hp *= 2
+		elif self.race == 'орк':
+			self.hp *= 2
+			self.damage *= 2
+		elif self.race == 'хоббит':
+			self.money *= 2
+			self.xp = (1000 * self.lvl) / 10
+		elif self.race == 'человек':
+			self.mana += (self.mana // 10) * self.lvl
+			self.hp += (self.mana // 10) * self.lvl
+			self.damage += (self.mana // 10) * self.lvl
+			self.money += (self.mana // 10) * self.lvl
+
 	def apply_negative_effect(self, effect_name: str, effect_damage: str):
-		self.negative_effects[f'{effect_name}#{len(self.negative_effects)}'] = effect_damage
+		self.negative_effects[f"{effect_name}#{len(self.negative_effects)}"] = (
+			effect_damage
+		)
 
 	def calc_additional_params(self):
-		if self.race == 'эльф':
+		if self.race == "эльф":
 			self.mana *= 3
 			self.damage //= 2
 			self.hp += self.hp // 10
-		elif self.race == 'орк':
+		elif self.race == "орк":
 			self.mana = self.wisdom
 			self.hp *= 2
 			self.damage *= 3
-		elif self.race == 'хоббит':
+		elif self.race == "хоббит":
 			self.money *= 5
 			self.hp -= self.hp // 10
 			self.damage //= 2
@@ -179,11 +398,11 @@ class Player(Entity):
 			return False
 
 	def take_damage(self, damage: float):
-		print(f'Вы получили урон: [bold red]{damage} урона[/bold red]')
+		print(f"Вы получили урон: [bold red]{damage} урона[/bold red]")
 		self.hp -= damage
 
 	def take_health(self, health: float):
-		print(f'Вы выздоровели: [bold green]{health} HP[/bold green]')
+		print(f"Вы выздоровели: [bold green]{health} HP[/bold green]")
 		self.hp += health
 
 	def get_current_weapon(self):
