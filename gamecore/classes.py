@@ -43,23 +43,23 @@ class Weapon(Item):
 		self.level = level
 
 		if self.level == 1:
-			self.name = f'Поломанный {self.name}'
+			self.name = f"Поломанный {self.name}"
 		elif self.level == 2:
-			self.name = f'Ржавый {self.name}'
+			self.name = f"Ржавый {self.name}"
 		elif self.level == 3:
-			self.name = f'Старый {self.name}'
+			self.name = f"Старый {self.name}"
 		elif self.level == 4:
-			self.name = f'Обычный {self.name}'
+			self.name = f"Обычный {self.name}"
 		elif self.level == 5:
-			self.name = f'Редкий {self.name}'
+			self.name = f"Редкий {self.name}"
 		elif self.level == 6:
-			self.name = f'Хороший {self.name}'
+			self.name = f"Хороший {self.name}"
 		elif self.level == 7:
-			self.name = f'Отличный {self.name}'
+			self.name = f"Отличный {self.name}"
 		elif self.level == 8:
-			self.name = f'Мифический {self.name}'
+			self.name = f"Мифический {self.name}"
 		elif self.level == 9:
-			self.name = f'Легендарный {self.name}'
+			self.name = f"Легендарный {self.name}"
 
 		try:
 			self.damage = max([1, damage * level // (self.initial_brokenness // 50)])
@@ -208,8 +208,8 @@ class Player(Entity):
 				spell_damage=100.0 * self.lvl,
 			),
 			"ЗЛАЯ НАСМЕШКА": AttackSpell(
-				spell_name='Злая насмешка',
-				spell_desc='Унижает вашего врага. Настолько, что он кричит от боли',
+				spell_name="Злая насмешка",
+				spell_desc="Унижает вашего врага. Настолько, что он кричит от боли",
 				mana_cost=10.0 * self.lvl,
 				spell_damage=10.0 * self.lvl,
 			),
@@ -253,22 +253,22 @@ class Player(Entity):
 				healing=100.0 * self.lvl,
 			),
 			"МАЛОЕ ЗАПИТЫВАНИЕ": ManaSpell(
-				spell_name='Малое запитывание',
-				spell_desc='Вы запитываетесь маной из окружающей среды. Быстро, но мало',
+				spell_name="Малое запитывание",
+				spell_desc="Вы запитываетесь маной из окружающей среды. Быстро, но мало",
 				mana=20.0 * self.lvl,
 			),
 			"СРЕДНЕЕ ЗАПИТЫВАНИЕ": ManaSpell(
-				spell_name='Среднее запитывание',
-				spell_desc='Вы запитываетесь маной из окружающей среды. Должно хватить',
+				spell_name="Среднее запитывание",
+				spell_desc="Вы запитываетесь маной из окружающей среды. Должно хватить",
 				mana=75.0 * self.lvl,
-				mana_cost=25.0 * self.lvl
+				mana_cost=25.0 * self.lvl,
 			),
 			"ВЕЛИКОЕ ЗАПИТЫВАНИЕ": ManaSpell(
-				spell_name='Великое запитывание',
-				spell_desc='Вы запитываетесь маной из окружающей среды. Требует концентрации',
+				spell_name="Великое запитывание",
+				spell_desc="Вы запитываетесь маной из окружающей среды. Требует концентрации",
 				mana=125.0 * self.lvl,
-				mana_cost=50.0 * self.lvl
-			)
+				mana_cost=50.0 * self.lvl,
+			),
 		}
 
 	def calc_damage(self):
@@ -282,7 +282,7 @@ class Player(Entity):
 	def level_up(self):
 		self.lvl += 1
 		print(f'{">" * 8} LEVEL UP {"<" * 8}')
-		print(f'Новый уровень: {self.lvl}')
+		print(f"Новый уровень: {self.lvl}")
 
 		self.spells = {
 			"ФАЕРБОЛЛ": AttackSpell(
@@ -292,8 +292,8 @@ class Player(Entity):
 				spell_damage=100.0 * self.lvl,
 			),
 			"ЗЛАЯ НАСМЕШКА": AttackSpell(
-				spell_name='Злая насмешка',
-				spell_desc='Унижает вашего врага. Настолько, что он кричит от боли',
+				spell_name="Злая насмешка",
+				spell_desc="Унижает вашего врага. Настолько, что он кричит от боли",
 				mana_cost=10.0 * self.lvl,
 				spell_damage=10.0 * self.lvl,
 			),
@@ -337,35 +337,35 @@ class Player(Entity):
 				healing=100.0 * self.lvl,
 			),
 			"МАЛОЕ ЗАПИТЫВАНИЕ": ManaSpell(
-				spell_name='Малое запитывание',
-				spell_desc='Вы запитываетесь маной из окружающей среды. Быстро, но мало',
+				spell_name="Малое запитывание",
+				spell_desc="Вы запитываетесь маной из окружающей среды. Быстро, но мало",
 				mana=20.0 * self.lvl,
 			),
 			"СРЕДНЕЕ ЗАПИТЫВАНИЕ": ManaSpell(
-				spell_name='Среднее запитывание',
-				spell_desc='Вы запитываетесь маной из окружающей среды. Должно хватить',
+				spell_name="Среднее запитывание",
+				spell_desc="Вы запитываетесь маной из окружающей среды. Должно хватить",
 				mana=75.0 * self.lvl,
-				mana_cost=25.0 * self.lvl
+				mana_cost=25.0 * self.lvl,
 			),
 			"ВЕЛИКОЕ ЗАПИТЫВАНИЕ": ManaSpell(
-				spell_name='Великое запитывание',
-				spell_desc='Вы запитываетесь маной из окружающей среды. Требует концентрации',
+				spell_name="Великое запитывание",
+				spell_desc="Вы запитываетесь маной из окружающей среды. Требует концентрации",
 				mana=125.0 * self.lvl,
-				mana_cost=50.0 * self.lvl
-			)
+				mana_cost=50.0 * self.lvl,
+			),
 		}
 		self.xp = 0
 
-		if self.race == 'эльф':
+		if self.race == "эльф":
 			self.mana *= 2
 			self.hp *= 2
-		elif self.race == 'орк':
+		elif self.race == "орк":
 			self.hp *= 2
 			self.damage *= 2
-		elif self.race == 'хоббит':
+		elif self.race == "хоббит":
 			self.money *= 2
 			self.xp = (1000 * self.lvl) / 10
-		elif self.race == 'человек':
+		elif self.race == "человек":
 			self.mana += (self.mana // 10) * self.lvl
 			self.hp += (self.mana // 10) * self.lvl
 			self.damage += (self.mana // 10) * self.lvl

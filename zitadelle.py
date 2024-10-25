@@ -2,7 +2,14 @@
 # -- coding: utf-8 --
 # -*- coding: utf-8 -*-
 from gamecore.resloader.loader import ResourceLoader
-from gamecore.constants import LOGO_COLORS, RIP_COLORS, ACTIONS, CITIES, ENEMIES, WEAPONS
+from gamecore.constants import (
+	LOGO_COLORS,
+	RIP_COLORS,
+	ACTIONS,
+	CITIES,
+	ENEMIES,
+	WEAPONS,
+)
 from gamecore.classes import Player, Enemy, Weapon
 from rich.panel import Panel
 from rich.prompt import Prompt, Confirm
@@ -39,19 +46,33 @@ def game_move(player):
 	player.mana = round(player.mana, 2)
 
 
-def print_player_panel(player, skip_submenu:bool=False):
+def print_player_panel(player, skip_submenu: bool = False):
 	print(
 		Panel(
-			f"[italic]{player.race}[/italic] [bold]{player.name.upper()}[/bold] [blue]{player.lvl} LVL/{player.xp} XP[/blue]  HP: [green]{player.hp}[/green]  СИЛА: [red]{player.power}[/red]  ЛОВКОСТЬ: [blue]{player.agility}[/blue]  МУДРОСТЬ: [magenta]{player.wisdom}[/magenta]  МАНА: [cyan]{player.mana}[/cyan]  УРОН: [red]{player.damage}[/red]  ДЕНЬГИ: [yellow]{player.money}[/yellow]", border_style='blue'
+			f"[italic]{player.race}[/italic] [bold]{player.name.upper()}[/bold] [blue]{player.lvl} LVL/{player.xp} XP[/blue]  HP: [green]{player.hp}[/green]  СИЛА: [red]{player.power}[/red]  ЛОВКОСТЬ: [blue]{player.agility}[/blue]	МУДРОСТЬ: [magenta]{player.wisdom}[/magenta]  МАНА: [cyan]{player.mana}[/cyan]	УРОН: [red]{player.damage}[/red]  ДЕНЬГИ: [yellow]{player.money}[/yellow]",
+			border_style="blue",
 		)
 	)
 	if skip_submenu:
 		return
 	inventory_items = "\n".join(
-		[f"[bold blue]{key}:[/bold blue] {value.name}" for key, value in player.inventory.items()]
+		[
+			f"[bold blue]{key}:[/bold blue] {value.name}"
+			for key, value in player.inventory.items()
+		]
 	)
-	spells = "\n".join([f"[bold magenta]{name}[/bold magenta] - {spell.spell_desc} ({spell.mana_cost} MANA)" for name, spell in player.spells.items()])
-	print(Panel(f"[bold]Оружие[/bold]: [red]{player.initial_weapon.name} ([italic]{player.initial_weapon.damage} урона[/italic])[/red]\n[bold]Инвентарь[/bold]:\n{inventory_items}\n[bold]Заклинания[/bold]:\n{spells}", border_style='cyan'))
+	spells = "\n".join(
+		[
+			f"[bold magenta]{name}[/bold magenta] - {spell.spell_desc} ({spell.mana_cost} MANA)"
+			for name, spell in player.spells.items()
+		]
+	)
+	print(
+		Panel(
+			f"[bold]Оружие[/bold]: [red]{player.initial_weapon.name} ([italic]{player.initial_weapon.damage} урона[/italic])[/red]\n[bold]Инвентарь[/bold]:\n{inventory_items}\n[bold]Заклинания[/bold]:\n{spells}",
+			border_style="cyan",
+		)
+	)
 
 
 def shop(player):
@@ -67,11 +88,12 @@ def shop(player):
 			"description": "Выход из магазина бесплатный",
 			"type": "exit",
 		},
-		f'{weapon_name}': {
-			"price": (10 * weapon_damage * weapon_level) // (max([1, weapon.initial_brokenness // 10])),
-			"type": 'weapon',
-			'weapon': weapon,
-			'description': f'По рассказам продавца, этот {weapon_name} идеальнен для вас.'
+		f"{weapon_name}": {
+			"price": (10 * weapon_damage * weapon_level)
+			// (max([1, weapon.initial_brokenness // 10])),
+			"type": "weapon",
+			"weapon": weapon,
+			"description": f"По рассказам продавца, этот {weapon_name} идеальнен для вас.",
 		},
 		"Зелье регенерации": {
 			"price": randint(10, 150) * player.lvl,
@@ -91,7 +113,7 @@ def shop(player):
 			"healval": randint(50, 200) * player.lvl,
 			"description": "Лечит хорошо, но отвратительно на вкус и слишком дорого",
 		},
-		'Зелье lehfrf': {
+		"Зелье lehfrf": {
 			"price": randint(10, 1000) * player.lvl,
 			"type": "poison",
 			"damageval": randint(1, 100) * player.lvl,
@@ -179,15 +201,17 @@ def shop(player):
 
 		if item["type"] == "healing":
 			player.take_health(item["healval"])
-		elif item['type'] == 'weapon':
-			player.initial_weapon = item['weapon']
+		elif item["type"] == "weapon":
+			player.initial_weapon = item["weapon"]
 		elif item["type"] == "manaup":
 			player.mana += item["manaval"]
 		elif item["type"] == "damageup":
 			player.damage += item["damageval"]
 		elif item["type"] == "poison":
 			player.take_damage(item["damageval"])
-			print(f'[red bold]Проклятие![/red bold] Зелье отравило вас на {item["damageval"]} HP!')
+			print(
+				f'[red bold]Проклятие![/red bold] Зелье отравило вас на {item["damageval"]} HP!'
+			)
 		elif item["type"] == "paramup":
 			if item["param"] == "wisdom":
 				player.wisdom += item["upval"]
@@ -212,22 +236,29 @@ def battle(player, multiplier=1):
 
 	while enemy.hp > 0 and player.hp > 0:
 		print_player_panel(player, skip_submenu=True)
-		print(Panel(f"Враг: [red bold]{enemy.name}[/red bold]\tHP врага: [green]{enemy.hp}[/green]", border_style='red'))
 		print(
 			Panel(
-				"Действия:\n1 - [red italic]атаковать[/red italic]\n2 - [magenta italic]применить заклинание[/magenta italic]\n3 - [blue italic]встать в блок[/blue italic]\n4 - [dim]сбежать[/dim]\n5 - [green italic]залечить раны[/green italic]", border_style='cyan'
+				f"Враг: [red bold]{enemy.name}[/red bold]\tHP врага: [green]{enemy.hp}[/green]",
+				border_style="red",
+			)
+		)
+		print(
+			Panel(
+				"Действия:\n1 - [red italic]атаковать[/red italic]\n2 - [magenta italic]применить заклинание[/magenta italic]\n3 - [blue italic]встать в блок[/blue italic]\n4 - [dim]сбежать[/dim]\n5 - [green italic]залечить раны[/green italic]",
+				border_style="cyan",
 			)
 		)
 
 		act = Prompt.ask("Действие: ", default="1")
 
 		if act == "1":
-			damage = randint(int(player.damage), int(max([player.damage * player.lvl, player.damage * 2])))
-			enemy.take_damage(damage)
-			print(
-				f"Вы нанесли [bold red]{damage}[/bold red] урона врагу: {enemy.name}"
+			damage = randint(
+				int(player.damage),
+				int(max([player.damage * player.lvl, player.damage * 2])),
 			)
-		elif act == '5':
+			enemy.take_damage(damage)
+			print(f"Вы нанесли [bold red]{damage}[/bold red] урона врагу: {enemy.name}")
+		elif act == "5":
 			player.take_health(randint(2 * player.lvl, 20 * player.lvl) * player.lvl)
 		elif act == "3":
 			if randint(1, 2) == 1:
@@ -249,12 +280,15 @@ def battle(player, multiplier=1):
 					"Тяжелая нога судьбы поставила вам подножку, и [red bold]вы упали под ноги врагу![/red bold]"
 				)
 		elif act == "2":
-			spells = "\n".join([f"[bold magenta]{name}[/bold magenta] - {spell.spell_desc} ({spell.mana_cost} MANA)" for name, spell in player.spells.items()])
-			print(Panel(f"[bold]Заклинания[/bold]:\n{spells}", border_style='magenta'))
-			spells = [name.lower() for name in player.spells.keys()]
-			spell = Prompt.ask(
-				"Название заклинания", choices=spells, default=spells[0]
+			spells = "\n".join(
+				[
+					f"[bold magenta]{name}[/bold magenta] - {spell.spell_desc} ({spell.mana_cost} MANA)"
+					for name, spell in player.spells.items()
+				]
 			)
+			print(Panel(f"[bold]Заклинания[/bold]:\n{spells}", border_style="magenta"))
+			spells = [name.lower() for name in player.spells.keys()]
+			spell = Prompt.ask("Название заклинания", choices=spells, default=spells[0])
 			spell = str(spell).upper()
 
 			print(f'\n{"*" * 32}\n')
@@ -263,7 +297,10 @@ def battle(player, multiplier=1):
 				print(
 					"У вас [red bold]не хватило маны[/red bold] на сотворение заклинания, вам пришлось перейти [bold]в ближний бой.[/bold]"
 				)
-				damage = randint(int(player.damage), int(max([player.damage * player.lvl, player.damage * 2])))
+				damage = randint(
+					int(player.damage),
+					int(max([player.damage * player.lvl, player.damage * 2])),
+				)
 				enemy.take_damage(damage)
 				print(
 					f"Вы нанесли [bold red]{damage}[/bold red] урона врагу: {enemy.name}"
@@ -313,7 +350,9 @@ def battle(player, multiplier=1):
 
 	print(f'\n{"*" * 32}\n')
 
-	print(f"[bold]Враг {enemy.name} [green]побежден[/green]! Ваш лут: [yellow]{loot} монет[/yellow] и [cyan]{loot // 2} XP[/cyan]![/bold]")
+	print(
+		f"[bold]Враг {enemy.name} [green]побежден[/green]! Ваш лут: [yellow]{loot} монет[/yellow] и [cyan]{loot // 2} XP[/cyan]![/bold]"
+	)
 	player.money += loot
 	player.xp += loot // 2
 	player.hp += player.hp // 10
@@ -343,7 +382,7 @@ def main():
 		player.wisdom = 1000000
 		player.agility = 1000000
 		player.power = 1000000
-	elif name == 'СОСУНОК':
+	elif name == "СОСУНОК":
 		player.money = 1
 		player.damage = 1
 		player.initial_weapon.damage = 1
@@ -351,7 +390,7 @@ def main():
 		player.wisdom = 1
 		player.agility = 1
 		player.power = 1
-	elif name == 'УХХХ':
+	elif name == "УХХХ":
 		player.lvl = 0
 		player.xp = -10000000
 	clear()
@@ -370,28 +409,43 @@ def main():
 			player.mana = 10000000000
 		elif action == "+3333B":
 			battle(player, multiplier=1000000)
-		elif action == '$CHEATS':
-			ask = Prompt.ask('Выберите параметр', choices=['damage', 'level', 'xp', 'hp', 
-												'power', 'wisdom', 'agility', 'money', 'mana'], default='xp')
-			num = int(Prompt.ask(f'Выберите новое значение параметра "{ask}"', default=100))
+		elif action == "$CHEATS":
+			ask = Prompt.ask(
+				"Выберите параметр",
+				choices=[
+					"damage",
+					"level",
+					"xp",
+					"hp",
+					"power",
+					"wisdom",
+					"agility",
+					"money",
+					"mana",
+				],
+				default="xp",
+			)
+			num = int(
+				Prompt.ask(f'Выберите новое значение параметра "{ask}"', default=100)
+			)
 
-			if ask == 'damage':
+			if ask == "damage":
 				player.damage = num
-			elif ask == 'level':
+			elif ask == "level":
 				player.lvl = num
-			elif ask == 'xp':
+			elif ask == "xp":
 				player.xp = num
-			elif ask == 'hp':
+			elif ask == "hp":
 				player.hp = num
-			elif ask == 'power':
+			elif ask == "power":
 				player.power = num
-			elif ask == 'wisdom':
+			elif ask == "wisdom":
 				player.wisdom = num
-			elif ask == 'agility':
+			elif ask == "agility":
 				player.agility = num
-			elif ask == 'money':
+			elif ask == "money":
 				player.money = num
-			elif ask == 'mana':
+			elif ask == "mana":
 				player.mana = num
 
 			player.level_up()
@@ -415,29 +469,48 @@ def main():
 				print(f"Вы находите на дороге {money} монет. Приятно!")
 				player.money += money
 			elif chance == 7:
-				price = ((2 * player.lvl) * player.initial_weapon.initial_brokenness) * player.lvl
-				print(f'Кузнец хочет за небольшую плату ([yellow]{price}[/yellow]) починить ваш {player.initial_weapon.name}.')
-				repair = Confirm.ask(f'Вы согласны?')
+				price = (
+					(2 * player.lvl) * player.initial_weapon.initial_brokenness
+				) * player.lvl
+				print(
+					f"Кузнец хочет за небольшую плату ([yellow]{price}[/yellow]) починить ваш {player.initial_weapon.name}."
+				)
+				repair = Confirm.ask("Вы согласны?")
 
 				if repair:
 					if player.money < price:
-						print(f'У вас [red bold]не хватает средств на починку.[/red bold]')
+						print(
+							"У вас [red bold]не хватает средств на починку.[/red bold]"
+						)
 					else:
-						print('[green bold]Успешная покупка![/green bold]')
+						print("[green bold]Успешная покупка![/green bold]")
 						player.money -= price
 						player.initial_weapon.repair()
 			elif chance == 8 and player.initial_weapon.level < 9:
-				price = ((2 * player.lvl) * player.initial_weapon.initial_brokenness) * player.lvl
-				print(f'Кузнец хочет за небольшую плату ([yellow]{price}[/yellow]) улучшить ваш {player.initial_weapon.name}.')
-				repair = Confirm.ask(f'Вы согласны?')
+				price = (
+					(2 * player.lvl) * player.initial_weapon.initial_brokenness
+				) * player.lvl
+				print(
+					f"Кузнец хочет за небольшую плату ([yellow]{price}[/yellow]) улучшить ваш {player.initial_weapon.name}."
+				)
+				repair = Confirm.ask("Вы согласны?")
 
 				if repair:
 					if player.money < price:
-						print(f'У вас [red bold]не хватает средств на починку.[/red bold]')
+						print(
+							"У вас [red bold]не хватает средств на починку.[/red bold]"
+						)
 					else:
-						print('[green bold]Успешная покупка![/green bold]')
+						print("[green bold]Успешная покупка![/green bold]")
 						player.money -= price
-						player.initial_weapon.damage = max([1, player.initial_weapon.damage * player.initial_weapon.level // player.initial_weapon.initial_brokenness])
+						player.initial_weapon.damage = max(
+							[
+								1,
+								player.initial_weapon.damage
+								* player.initial_weapon.level
+								// player.initial_weapon.initial_brokenness,
+							]
+						)
 			else:
 				print(choice(ACTIONS))
 
