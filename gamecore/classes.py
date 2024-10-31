@@ -62,7 +62,7 @@ class Weapon(Item):
 			self.name = f"Легендарный {self.name}"
 
 		try:
-			self.damage = max([1, damage * level // (self.initial_brokenness // 50)])
+			self.damage = max([1, round(damage * level / (self.initial_brokenness / 10), 2)]) * 2
 		except ZeroDivisionError:
 			self.damage = 1
 
@@ -82,13 +82,21 @@ class Weapon(Item):
 		elif self.initial_brokenness > 90.0:
 			state = "Сломанный"
 
+		if self.initial_brokenness == 0.0:
+			state = 'Идеал'
+
 		return state
 
 	def use(self):
 		self.initial_brokenness -= self.breaking_value
 
+		try:
+			self.damage = max([1, self.damage * self.level // (self.initial_brokenness // 10)])
+		except ZeroDivisionError:
+			self.damage = 1
+
 	def repair(self):
-		self.damage = self.damage * int(self.initial_brokenness // 50)
+		self.damage = self.damage * (self.initial_brokenness / 10)
 		self.initial_brokenness = 0.0
 		self.name = f"{self.name} ({self.get_brokenness_state()})"
 
@@ -125,19 +133,27 @@ class Enemy(Entity):
 	def __init__(self, multiplier, player, name: str, danger_level: int):
 		self.danger_level = danger_level
 		self.player = player
-
-		if self.danger_level == 1:
-			self.name = name
-		elif self.danger_level == 2:
-			self.name = f"Злой {name}"
+		self.name = name
+		if self.danger_level == 2:
+			self.name = f"Злой {self.name}"
 		elif self.danger_level == 3:
-			self.name = f"Гига{name.lower()}"
+			self.name = f"Гига{self.name.lower()}"
 		elif self.danger_level == 4:
-			self.name = f"Кровавый {name.lower()}"
+			self.name = f"Кровавый {self.name}"
 		elif self.danger_level == 5:
-			self.name = f"Темный {name.lower()}"
+			self.name = f"Темный {self.name}"
 		elif self.danger_level == 6:
-			self.name = f"Владыка хаоса {name}"
+			self.name = f"Чернолорд {self.name}"
+		elif self.danger_level == 7:
+			self.name = f'Лич {self.name}'
+		elif self.danger_level == 8:
+			self.name = f'Владыка личей {self.name}'
+		elif self.danger_level == 9:
+			self.name = f'Архилич {self.name}'
+		elif self.danger_level == 10:
+			self.name == f'Владыка архиличей {self.name}'
+		elif self.danger_level == 11:
+			self.name = f'Владыка хаоса {self.name}'
 
 		self.hp = (randint(10, 100) * self.player.lvl * self.danger_level) * multiplier
 		self.damage = (
@@ -163,6 +179,14 @@ class Enemy(Entity):
 		self.hp += health
 
 
+@dataclass
+class PassiveAbility:
+	name: str
+	desc: str
+	param: str
+	value: any
+
+
 class Player(Entity):
 	def __init__(
 		self,
@@ -178,6 +202,8 @@ class Player(Entity):
 		self.hp = initial_hp
 		self.race = race.lower()
 
+		self.passive_abilities = []
+
 		self.power = randint(3, 10) + 3 if self.race == "орк" else randint(1, 10)
 		self.agility = randint(3, 10) + 3 if self.race == "хоббит" else randint(1, 10)
 		self.wisdom = randint(3, 10) + 3 if self.race == "эльф" else randint(1, 10)
@@ -186,10 +212,36 @@ class Player(Entity):
 			self.power = randint(2, 10) + 1
 			self.agility = randint(2, 10) + 1
 			self.wisdom = randint(2, 10) + 1
+			self.passive_abilities.append(
+						PassiveAbility(name='Универсал',
+										desc='Каждый гейм-мув вы получаете дополнительную ману, монеты или XP.',
+										param='random_additional_param',
+										value=15)
+			)
 		elif self.race == "хоббит":
 			self.money = 10 * self.agility
+			self.passive_abilities.append(
+						PassiveAbility(name='Скидка', 
+										desc='Хоббиты обожают деньги и всегда могут получить скидку (25%).',
+										param='discount',
+										value=25)
+			)
 		elif self.race == "орк":
+			self.passive_abilities.append(
+						PassiveAbility(name='Стойкость', 
+										desc=f'Орочье наследие сделало вас невероятно стойким. Вы можете уходить в минус на {50 * self.lvl}HP.',
+										param='health_fortitude',
+										value=50)
+			)
 			self.initial_weapon.damage *= 2
+			self.hp *= 2
+		elif self.race == 'эльф':
+			self.passive_abilities.append(
+						PassiveAbility(name='Мания маны', 
+										desc=f'Эльфийская душа позволяет вам получить ману за убийство врага.',
+										param='mana_loot',
+										value=2)
+			)
 
 		self.money = 2 * self.agility * self.lvl * 2
 		self.damage = self.power + self.initial_weapon.damage
@@ -244,7 +296,7 @@ class Player(Entity):
 				spell_name="Яд драконов",
 				spell_desc="Дорогое заклинание, наносит меньше урона чем боевые, но с каждым ходом урон удваивается из-за эффекта отравления.",
 				mana_cost=100.0 * self.lvl,
-				spell_damage=10.0 * self.lvl,
+				spell_damage=5.0 * self.lvl,
 			),
 			"ВЕЛИКОЕ ПРЕВОЗМОГАНИЕ": HealthSpell(
 				spell_name="Великое превозмогание",
@@ -283,6 +335,9 @@ class Player(Entity):
 		self.lvl += 1
 		print(f'{">" * 8} LEVEL UP {"<" * 8}')
 		print(f"Новый уровень: {self.lvl}")
+
+		for i in range(len(self.passive_abilities)):
+			self.passive_abilities[i].value *= self.lvl
 
 		self.spells = {
 			"ФАЕРБОЛЛ": AttackSpell(
@@ -361,7 +416,8 @@ class Player(Entity):
 			self.hp *= 2
 		elif self.race == "орк":
 			self.hp *= 2
-			self.damage *= 2
+			self.damage *= 3
+			self.mana /= 2
 		elif self.race == "хоббит":
 			self.money *= 2
 			self.xp = (1000 * self.lvl) / 10

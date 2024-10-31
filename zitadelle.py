@@ -10,18 +10,18 @@ from gamecore.constants import (
 	ENEMIES,
 	WEAPONS,
 )
-from gamecore.classes import Player, Enemy, Weapon
+from gamecore.classes import Player, Enemy, Weapon, PassiveAbility
 from rich.panel import Panel
 from rich.prompt import Prompt, Confirm
 from rich import print
-from gamecore.ui import clear
+from gamecore.ui import clear, print_player_panel
 from random import randint, choice
 
 loader = ResourceLoader("res")
 loader.add_resource("logo.txt", "logo")
 loader.add_resource("rip.txt", "rip")
 
-XP_FOR_UP = 100
+XP_FOR_UP = 1000
 
 
 def game_move(player):
@@ -29,13 +29,22 @@ def game_move(player):
 
 	player.calc_damage()
 
+	for passive_ability in player.passive_abilities:
+		if passive_ability.param == 'random_additional_param':
+			chance = randint(1, 3)
+			value = randint(player.lvl, passive_ability.value * player.lvl)
+
+			if chance == 1: print(f'[[bold]{passive_ability.name}[/bold]] +{value} MANA'); player.mana += value
+			if chance == 2: print(f'[[bold]{passive_ability.name}[/bold]] +{value} MONEY'); player.money += value
+			if chance == 3: print(f'[[bold]{passive_ability.name}[/bold]] +{value} XP'); player.xp += value
+
 	if not player.check_life():
 		clear()
 		loader.print_resource_content("rip", colors=RIP_COLORS, background="black")
 		print("Ваш персонаж [red bold]погиб[/red bold].")
 		exit()
 
-	if player.xp >= XP_FOR_UP:
+	if player.xp >= XP_FOR_UP * player.lvl:
 		player.xp += player.xp - XP_FOR_UP
 		player.level_up()
 
@@ -44,35 +53,6 @@ def game_move(player):
 
 	player.hp = round(player.hp, 2)
 	player.mana = round(player.mana, 2)
-
-
-def print_player_panel(player, skip_submenu: bool = False):
-	print(
-		Panel(
-			f"[italic]{player.race}[/italic] [bold]{player.name.upper()}[/bold] [blue]{player.lvl} LVL/{player.xp} XP[/blue]  HP: [green]{player.hp}[/green]  СИЛА: [red]{player.power}[/red]  ЛОВКОСТЬ: [blue]{player.agility}[/blue]	МУДРОСТЬ: [magenta]{player.wisdom}[/magenta]  МАНА: [cyan]{player.mana}[/cyan]	УРОН: [red]{player.damage}[/red]  ДЕНЬГИ: [yellow]{player.money}[/yellow]",
-			border_style="blue",
-		)
-	)
-	if skip_submenu:
-		return
-	inventory_items = "\n".join(
-		[
-			f"[bold blue]{key}:[/bold blue] {value.name}"
-			for key, value in player.inventory.items()
-		]
-	)
-	spells = "\n".join(
-		[
-			f"[bold magenta]{name}[/bold magenta] - {spell.spell_desc} ({spell.mana_cost} MANA)"
-			for name, spell in player.spells.items()
-		]
-	)
-	print(
-		Panel(
-			f"[bold]Оружие[/bold]: [red]{player.initial_weapon.name} ([italic]{player.initial_weapon.damage} урона[/italic])[/red]\n[bold]Инвентарь[/bold]:\n{inventory_items}\n[bold]Заклинания[/bold]:\n{spells}",
-			border_style="cyan",
-		)
-	)
 
 
 def shop(player):
@@ -96,21 +76,21 @@ def shop(player):
 			"description": f"По рассказам продавца, этот {weapon_name} идеальнен для вас.",
 		},
 		"Зелье регенерации": {
-			"price": randint(10, 150) * player.lvl,
+			"price": randint(50, 200) * player.lvl,
 			"type": "healing",
-			"healval": randint(1, 50) * player.lvl,
+			"healval": randint(50, 150) * player.lvl,
 			"description": "Отлично лечит, но отвратительно на вкус",
 		},
 		"Малая колба регенерации": {
-			"price": randint(10, 70) * player.lvl,
+			"price": randint(25, 100) * player.lvl,
 			"type": "healing",
-			"healval": randint(1, 25) * player.lvl,
+			"healval": randint(25, 75) * player.lvl,
 			"description": "Вроде лечит, но отвратительно на вкус",
 		},
 		"Ведро зелья регенерации": {
-			"price": randint(100, 500) * player.lvl,
+			"price": randint(150, 500) * player.lvl,
 			"type": "healing",
-			"healval": randint(50, 200) * player.lvl,
+			"healval": randint(100, 300) * player.lvl,
 			"description": "Лечит хорошо, но отвратительно на вкус и слишком дорого",
 		},
 		"Зелье lehfrf": {
@@ -168,6 +148,13 @@ def shop(player):
 
 	print_player_panel(player)
 
+	for passive_ability in player.passive_abilities:
+		if passive_ability.param == 'discount':
+			value = passive_ability.value
+			print(f'[[bold]СКИДКА[/bold]] {value}%')
+			for item in SHOP_ITEMS.keys():
+				SHOP_ITEMS[item]['price'] = SHOP_ITEMS[item]['price'] - (SHOP_ITEMS[item]['price'] / 100 * value)
+
 	items = "\n\n".join(
 		[
 			f'[bold]{name}[/bold]: цена [yellow]{item["price"]}[/yellow]\n[italic]{item["description"]}[/italic]'
@@ -222,19 +209,32 @@ def shop(player):
 				player.power += item["upval"]
 				player.damage += item["upval"]
 
-	game_move(player)
-
 
 def battle(player, multiplier=1):
-	enemy = Enemy(multiplier, player, choice(ENEMIES), randint(1, 6))
-	loot = enemy.hp // 10 * (player.lvl * enemy.danger_level) * multiplier
+	enemy = Enemy(multiplier, player, choice(ENEMIES), randint(1, 11))
+	loot = (enemy.hp * (player.lvl * enemy.danger_level) * multiplier) / 10
 
 	if player.race == "хоббит":
 		loot *= 2
 	if player.race == "орк":
 		enemy.hp -= enemy.hp // 10
 
-	while enemy.hp > 0 and player.hp > 0:
+	has_fortitude = False
+	fortitude = None
+
+	for passive_ability in player.passive_abilities:
+		if passive_ability.param == 'health_fortitude':
+			has_fortitude = True
+			fortitude = passive_ability.value * player.lvl
+
+	while enemy.hp > 0:
+		if player.hp <= 0 and not has_fortitude:
+			break
+		elif player.hp <= 0 and has_fortitude:
+			print(f'[[bold]СТОЙКОСТЬ[/bold]] Вы могли бы погибнуть, но смогли собраться с силами и получить {fortitude} HP!')
+			player.hp = fortitude
+			has_fortitude = False
+
 		print_player_panel(player, skip_submenu=True)
 		print(
 			Panel(
@@ -351,12 +351,17 @@ def battle(player, multiplier=1):
 	print(f'\n{"*" * 32}\n')
 
 	print(
-		f"[bold]Враг {enemy.name} [green]побежден[/green]! Ваш лут: [yellow]{loot} монет[/yellow] и [cyan]{loot // 2} XP[/cyan]![/bold]"
+		f"[bold]Враг {enemy.name} [green]побежден[/green]! Ваш лут: [yellow]{loot} монет[/yellow] и [cyan]{loot // 10} XP[/cyan]![/bold]"
 	)
+
+	for passive_ability in player.passive_abilities:
+		if passive_ability.param == 'mana_loot':
+			print(f'[[bold]МАНИЯ МАНЫ[/bold]] Вы получаете {loot * passive_ability.value} маны!')
+			player.mana += loot * passive_ability.value
+
 	player.money += loot
-	player.xp += loot // 2
+	player.xp += loot // 10
 	player.hp += player.hp // 10
-	game_move(player)
 
 
 def main():
@@ -450,10 +455,50 @@ def main():
 
 			player.level_up()
 		elif action == "1":
-			chance = randint(1, 7)
+			chance = randint(1, 10)
 
 			if chance == 1:
-				print(f"Вы встретили город {choice(CITIES)}")
+				print(f"Вы встретили город {choice(CITIES)}.")
+				abilities_name = ['Дизельный пропеллер', 'С вами быть больше не хочу', 'Крыша', 'Ловля',
+								'Пассивка для балбеса', 'Варенье', 'Пропеллер на дизеле', 'Мана из дизеля',
+								'Квак-квак', 'Улыбнитесь', 'Хватит терпеть', 'Варенье на биткоин',
+								'Вы меня не унизили', 'Скукота', 'Покривлялся и улетел', 'ПУУУСК!']
+				ability_param = ['random_additional_param', 'discount', 'health_fortitude', 'mana_loot']
+				ability_values = {
+					'random_additional_param': randint(10 * player.lvl, 20 * player.lvl),
+					'discount': randint(5, 40),
+					'health_fortitude': randint(10 * player.lvl, 100 * player.lvl),
+					'mana_loot': randint(2 * player.lvl, 10 * player.lvl)
+				}
+				ability_descs = {
+					'random_additional_param': 'Случайное число для случайного параметра! Что может быть лучше?',
+					'discount': 'Да вы настоящий капиталист! Скидка в магазине!',
+					'health_fortitude': 'Халявное здоровье при уходе в минус!',
+					'mana_loot': 'Время залутать ману!'
+				}
+
+				param = choice(ability_param)
+				desc = ability_descs[param]
+				value = ability_values[param]
+
+				ability = PassiveAbility(name=choice(abilities_name), desc=desc, param=param, value=value)
+			
+				price = randint(100 * player.lvl, 300 * player.lvl) * player.lvl
+
+				print(f'Вам предложили за небольшую плату ([bold yellow]{price}[/bold yellow]) получить новую пассивную способность:')
+				print(f'[bold]{ability.name}[/bold]: {ability.desc}')
+
+				buy = Confirm.ask("Вы согласны?")
+
+				if buy:
+					if player.money < price:
+						print(
+							"У вас [red bold]не хватает средств.[/red bold]"
+						)
+					else:
+						print("[green bold]Успешная покупка![/green bold]")
+
+						player.passive_abilities.append(ability)
 			elif chance == 2 or chance == 3:
 				print("Вы встретили небольшой магазинчик местного купца")
 				shop(player)
@@ -502,15 +547,10 @@ def main():
 						)
 					else:
 						print("[green bold]Успешная покупка![/green bold]")
-						player.money -= price
-						player.initial_weapon.damage = max(
-							[
-								1,
-								player.initial_weapon.damage
-								* player.initial_weapon.level
-								// player.initial_weapon.initial_brokenness,
-							]
-						)
+						player.money -= price						
+						player.initial_weapon.damage /= player.initial_weapon.level
+						player.initial_weapon.level += 1
+						player.initial_weapon.damage *= player.initial_weapon.level
 			else:
 				print(choice(ACTIONS))
 
