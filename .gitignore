@@ -11,6 +11,8 @@ __pycache__/
 build/
 develop-eggs/
 dist/
+.vscode/
+.ruff_cache/
 downloads/
 eggs/
 .eggs/
