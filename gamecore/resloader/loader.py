@@ -1,6 +1,7 @@
 from pathlib import Path
 from rich import print
 
+
 class ResourceLoader:
     def __init__(self, resources_dir: str):
         self.resources_dir = Path(resources_dir)
@@ -14,7 +15,9 @@ class ResourceLoader:
             short_name = filename.lower()
         self.resources[short_name] = filename
 
-    def print_resource_content(self, short_name: str, colors: dict = {}, background: str = None):
+    def print_resource_content(
+        self, short_name: str, colors: dict = {}, background: str = None
+    ):
         if short_name not in self.resources:
             return
 

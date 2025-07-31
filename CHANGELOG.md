@@ -1,3 +1,9 @@
+commit a78eff45e52dcbae68165fb16710faf641bc9390
+Author: Alexeev Bronislav <alexeev.dev@mail.ru>
+Date:   Thu Jul 31 05:14:09 2025 +0700
+
+    add saves, quests, improve game mechanics and game balance
+
 commit 837a039709c1b489a716d2a38b4a03f041f01ebc
 Author: Alexeev Bronislav <alexeev.dev@mail.ru>
 Date:   Thu Jul 31 04:14:21 2025 +0700
