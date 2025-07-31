@@ -8,11 +8,11 @@ from gamecore.ui import clear, print_player_panel
 from random import randint, choice
 import json
 import os
+import time
 
 loader = ResourceLoader("res")
 loader.add_resource("logo.txt", "logo")
 loader.add_resource("rip.txt", "rip")
-
 
 def game_move(player):
     player.damage = player.power + player.equipment["weapon"].value
@@ -20,16 +20,14 @@ def game_move(player):
 
     for passive_ability in player.passive_abilities:
         if passive_ability.param == "random_additional_param":
-            chance = randint(1, 3)
             value = randint(player.lvl, passive_ability.value * player.lvl)
-
-            if chance == 1:
+            if randint(1, 3) == 1:
                 print(f"[[bold]{passive_ability.name}[/bold]] +{value} MANA")
                 player.mana = min(player.max_mana, player.mana + value)
-            elif chance == 2:
+            elif randint(1, 3) == 2:
                 print(f"[[bold]{passive_ability.name}[/bold]] +{value} MONEY")
                 player.money += value
-            elif chance == 3:
+            else:
                 print(f"[[bold]{passive_ability.name}[/bold]] +{value} XP")
                 player.xp += value
 
@@ -45,81 +43,74 @@ def game_move(player):
     player.regen_resources()
     return True
 
-
 def shop(player):
     clear()
     terrain = player.terrain or choice(TERRAINS)
     terrain_effects = TERRAIN_EFFECTS.get(terrain, {})
 
-    inflation = 1.0 + (player.lvl * 0.05)
+    inflation = 1.0 + (player.lvl * 0.03)
     item_level = max(1, min(9, player.lvl + randint(-1, 2)))
 
     weapon_name = choice(WEAPONS)
-    weapon_damage = randint(5, 50) * item_level
+    weapon_damage = randint(5, 30) * item_level
     weapon_element = choice([None] + ELEMENTS)
     weapon = Weapon(
-        weapon_name, weapon_damage, item_level, randint(0, 50), weapon_element
+        weapon_name, weapon_damage, item_level, randint(0, 30), weapon_element
     )
 
     armor_name = choice(ARMOR)
-    armor_defense = randint(3, 20) * item_level
+    armor_defense = randint(3, 15) * item_level
     armor = Armor(armor_name, armor_defense, "armor")
 
     SHOP_ITEMS = {
-        "0": {
-            "price": 0,
-            "description": "Выход из магазина",
-            "type": "exit",
-        },
+        "0": {"price": 0, "description": "Выход из магазина", "type": "exit"},
         f"{weapon_name}": {
-            "price": max(
-                10,
-                int(
-                    (15 * weapon_damage * item_level)
-                    // max(1, weapon.initial_brokenness // 10)
-                    * inflation
-                ),
-            ),
+            "price": max(10, int((12 * weapon_damage * item_level) // max(1, weapon.durability // 10) * inflation)),
             "type": "weapon",
             "item": weapon,
             "description": f"{weapon.name} | Урон: {weapon.value:.2f} | Ур. {item_level}",
         },
         f"{armor_name}": {
-            "price": int(armor_defense * 30 * player.lvl * inflation),
+            "price": int(armor_defense * 25 * player.lvl * inflation),
             "type": "armor",
             "item": armor,
             "description": f"{armor.name} | Защита: {armor.value:.2f} | Ур. {item_level}",
         },
         "Зелье здоровья": {
-            "price": int(randint(25, 120) * player.lvl * inflation),
+            "price": int(randint(20, 80) * player.lvl * inflation),
             "type": "healing",
-            "healval": randint(30, 80) * player.lvl,
+            "healval": randint(25, 60) * player.lvl,
             "description": "Восстанавливает здоровье",
         },
         "Зелье маны": {
-            "price": int(randint(20, 90) * player.lvl * inflation),
+            "price": int(randint(15, 60) * player.lvl * inflation),
             "type": "manaup",
-            "manaval": randint(25, 60) * player.lvl,
+            "manaval": randint(20, 50) * player.lvl,
             "description": "Восстанавливает ману",
         },
         "Набор трав": {
-            "price": int(randint(7, 25) * player.lvl * inflation),
+            "price": int(randint(5, 15) * player.lvl * inflation),
             "type": "material",
             "material": "травы",
             "amount": randint(3, 7),
             "description": "Травы для крафта",
         },
         "Железный слиток": {
-            "price": int(randint(15, 35) * player.lvl * inflation),
+            "price": int(randint(10, 25) * player.lvl * inflation),
             "type": "material",
             "material": "железо",
             "amount": 1,
             "description": "Железо для крафта",
         },
         "Улучшение оружия": {
-            "price": int(150 * player.lvl * inflation),
+            "price": int(100 * player.lvl * inflation),
             "type": "upgrade",
             "description": "Улучшает текущее оружие",
+        },
+        "Починить оружие": {
+            "price": int(50 * player.lvl * inflation),
+            "type": "repair",
+            "description": "Восстанавливает прочность оружия",
         },
     }
 
@@ -133,11 +124,11 @@ def shop(player):
 
     for passive_ability in player.passive_abilities:
         if passive_ability.param == "discount":
-            value = passive_ability.value
-            print(f"[[bold]СКИДКА[/bold]] {value}%")
+            discount = passive_ability.value
+            print(f"[[bold]СКИДКА[/bold]] {discount}%")
             for item in SHOP_ITEMS.values():
                 if "price" in item:
-                    item["price"] = int(item["price"] * (1 - value / 100))
+                    item["price"] = int(item["price"] * (1 - discount / 100))
 
     items = []
     for name, item in SHOP_ITEMS.items():
@@ -151,73 +142,105 @@ def shop(player):
 
     print(Panel("\n\n".join(items), title="Товары магазина"))
 
-    item_choice = Prompt.ask(
-        "Выберите товар",
-        choices=list(SHOP_ITEMS.keys()),
-        default="0",
-        case_sensitive=False,
-    )
-    item = SHOP_ITEMS[item_choice]
-
-    if item["type"] == "exit":
-        print("До новых встреч!")
-        return
-
-    if player.money < item["price"]:
-        print("У вас [red bold]не хватает денег[/red bold] на покупку этого товара")
-        return
-
-    if not Confirm.ask(
-        f"Купить {item_choice} за {item['price']} монет?", case_sensitive=False
-    ):
-        print("Покупка отменена")
-        return
-
-    print("[green bold]Успешная покупка![/green bold]")
-    player.money -= item["price"]
-
-    if item["type"] == "weapon":
-        player.pickup_item(item["item"])
-        print(f"Вы купили: {item['item'].name}")
-    elif item["type"] == "armor":
-        player.pickup_item(item["item"])
-        print(f"Вы купили: {item['item'].name}")
-    elif item["type"] == "healing":
-        player.take_health(item["healval"])
-        print(f"Вы восстановили {item['healval']} HP")
-    elif item["type"] == "manaup":
-        player.mana = min(player.max_mana, player.mana + item["manaval"])
-        print(f"Вы восстановили {item['manaval']} маны")
-    elif item["type"] == "material":
-        material = item["material"]
-        amount = item["amount"]
-        player.crafting_materials[material] = (
-            player.crafting_materials.get(material, 0) + amount
+    while True:
+        item_choice = Prompt.ask(
+            "Выберите товар (или 'продать' для продажи предметов)",
+            choices=list(SHOP_ITEMS.keys()) + ["продать"],
+            default="0",
+            case_sensitive=False,
         )
-        print(f"Вы получили {amount} единиц материала: {material}")
-    elif item["type"] == "upgrade":
-        if player.equipment["weapon"]:
-            player.equipment["weapon"].level_up()
-            print(
-                f"[green]Оружие улучшено до уровня {player.equipment['weapon'].level}![/green]"
-            )
-        else:
-            print("[red]У вас нет оружия для улучшения![/red]")
-            player.money += item["price"]
 
+        if item_choice == "продать":
+            sell_items(player)
+            continue
+
+        item = SHOP_ITEMS[item_choice]
+
+        if item["type"] == "exit":
+            print("До новых встреч!")
+            return
+
+        if player.money < item["price"]:
+            print("У вас [red bold]не хватает денег[/red bold] на покупку этого товара")
+            continue
+
+        if not Confirm.ask(f"Купить {item_choice} за {item['price']} монет?", case_sensitive=False):
+            print("Покупка отменена")
+            continue
+
+        print("[green bold]Успешная покупка![/green bold]")
+        player.money -= item["price"]
+
+        if item["type"] == "weapon":
+            player.pickup_item(item["item"])
+            print(f"Вы купили: {item['item'].name}")
+        elif item["type"] == "armor":
+            player.pickup_item(item["item"])
+            print(f"Вы купили: {item['item'].name}")
+        elif item["type"] == "healing":
+            player.take_health(item["healval"])
+            print(f"Вы восстановили {item['healval']} HP")
+        elif item["type"] == "manaup":
+            player.mana = min(player.max_mana, player.mana + item["manaval"])
+            print(f"Вы восстановили {item['manaval']} маны")
+        elif item["type"] == "material":
+            material = item["material"]
+            amount = item["amount"]
+            player.crafting_materials[material] = player.crafting_materials.get(material, 0) + amount
+            print(f"Вы получили {amount} единиц материала: {material}")
+        elif item["type"] == "upgrade":
+            if player.equipment["weapon"]:
+                player.equipment["weapon"].level_up()
+                print(f"[green]Оружие улучшено до уровня {player.equipment['weapon'].level}![/green]")
+            else:
+                print("[red]У вас нет оружия для улучшения![/red]")
+                player.money += item["price"]
+        elif item["type"] == "repair":
+            if player.equipment["weapon"]:
+                repair_amount = min(100, player.equipment["weapon"].durability + 40)
+                player.equipment["weapon"].durability = repair_amount
+                print(f"[green]Прочность оружия восстановлена до {repair_amount}%![/green]")
+            else:
+                print("[red]У вас нет оружия для починки![/red]")
+                player.money += item["price"]
+
+def sell_items(player):
+    if not player.inventory:
+        print("[red]Ваш инвентарь пуст![/red]")
+        return
+
+    print("[bold]Ваши предметы:[/bold]")
+    items = list(player.inventory.keys())
+    for i, item_name in enumerate(items, 1):
+        item = player.inventory[item_name]
+        price = int(item.value * player.lvl * 0.7)
+        print(f"{i}. {item_name} - [yellow]{price}[/yellow] монет")
+
+    choice = IntPrompt.ask("Выберите предмет для продажи (0 - отмена)", choices=[str(i) for i in range(0, len(items)+1)], default=0)
+    if choice == 0:
+        return
+
+    item_name = items[choice-1]
+    item = player.inventory[item_name]
+    price = int(item.value * player.lvl * 0.7)
+
+    if Confirm.ask(f"Продать {item_name} за {price} монет?"):
+        player.money += price
+        player.drop_item(item_name)
+        print(f"[green]Вы продали {item_name} за {price} монет![/green]")
 
 def battle(player, enemy=None):
     if not enemy:
         terrain = choice(TERRAINS)
         enemy = Enemy(player, choice(ENEMIES), terrain)
 
-    loot = max(10, (enemy.hp * (player.lvl * enemy.danger_level)) / 10)
+    loot = max(10, (enemy.hp * (player.lvl * enemy.danger_level)) / 8)
     xp_gain = max(5, loot / 2)
 
     if player.race == "хоббит":
-        loot *= 1.5
+        loot *= 1.3
     if player.race == "орк":
-        enemy.hp -= enemy.hp * 0.1
+        enemy.hp -= enemy.hp * 0.05
 
     has_fortitude = False
     fortitude = None
@@ -227,11 +250,7 @@ def battle(player, enemy=None):
             has_fortitude = True
             fortitude = passive_ability.value * player.lvl
 
-    print(
-        Panel(
-            f"[bold red]БОЙ![/bold red] [cyan]{enemy.name}[/cyan] | [green]HP: {enemy.hp:.2f}[/green] | Локация: [yellow]{enemy.terrain}[/yellow]"
-        )
-    )
+    print(Panel(f"[bold red]БОЙ![/bold red] [cyan]{enemy.name}[/cyan] | [green]HP: {enemy.hp:.2f}[/green] | Локация: [yellow]{enemy.terrain}[/yellow]"))
 
     terrain_effects = TERRAIN_EFFECTS.get(enemy.terrain, {})
     if terrain_effects:
@@ -248,12 +267,7 @@ def battle(player, enemy=None):
             has_fortitude = False
 
         print_player_panel(player, skip_submenu=True)
-        print(
-            Panel(
-                f"Враг: [red bold]{enemy.name}[/red bold] | [green]HP: {enemy.hp:.2f}[/green] | Опасность: {enemy.danger_level}",
-                border_style="red",
-            )
-        )
+        print(Panel(f"Враг: [red bold]{enemy.name}[/red bold] | [green]HP: {enemy.hp:.2f}[/green] | Опасность: {enemy.danger_level}", border_style="red"))
 
         actions = [
             "1 - [red italic]Атаковать[/red italic]",
@@ -263,13 +277,14 @@ def battle(player, enemy=None):
             "5 - [green italic]Лечение[/green italic]",
             "6 - [yellow italic]Инвентарь[/yellow italic]",
             "7 - [cyan italic]Особое умение[/cyan italic]",
+            "8 - [white italic]Анализ врага[/white italic]",
         ]
 
         print(Panel("\n".join(actions), border_style="cyan"))
 
         act = Prompt.ask(
             "Действие",
-            choices=["1", "2", "3", "4", "5", "6", "7"],
+            choices=["1", "2", "3", "4", "5", "6", "7", "8"],
             default="1",
             case_sensitive=False,
         )
@@ -281,24 +296,16 @@ def battle(player, enemy=None):
 
             element_damage_mod = 1.0
             if player.equipment["weapon"].element:
-                resistance = enemy.element_resistances.get(
-                    player.equipment["weapon"].element, 0
-                )
+                resistance = enemy.element_resistances.get(player.equipment["weapon"].element, 0)
                 element_damage_mod = 1.0 - (resistance / 100.0)
                 if resistance > 0:
-                    print(
-                        f"[yellow]Враг устойчив к {player.equipment['weapon'].element}![/yellow] Урон уменьшен"
-                    )
+                    print(f"[yellow]Враг устойчив к {player.equipment['weapon'].element}![/yellow] Урон уменьшен")
                 elif resistance < 0:
-                    print(
-                        f"[red]Враг уязвим к {player.equipment['weapon'].element}![/red] Урон увеличен"
-                    )
+                    print(f"[red]Враг уязвим к {player.equipment['weapon'].element}![/red] Урон увеличен")
 
             damage = damage * element_damage_mod
             enemy.take_damage(damage)
-            print(
-                f"Вы нанесли [bold red]{damage:.2f}[/bold red] урона врагу: {enemy.name}"
-            )
+            print(f"Вы нанесли [bold red]{damage:.2f}[/bold red] урона врагу: {enemy.name}")
             player.equipment["weapon"].use()
         elif act == "5":
             heal_amount = randint(5, 15) * player.lvl
@@ -332,9 +339,7 @@ def battle(player, enemy=None):
                     item = player.inventory[item_use]
                     if item.type == "consumable":
                         player.take_health(item.value)
-                        print(
-                            f"[green]Использовано {item_use}! Восстановлено {item.value} HP[/green]"
-                        )
+                        print(f"[green]Использовано {item_use}! Восстановлено {item.value} HP[/green]")
                         player.drop_item(item_use)
                     elif item.type == "weapon" or item.type == "armor":
                         if player.equip_item(item_use):
@@ -365,13 +370,15 @@ def battle(player, enemy=None):
                 print(f"Вы используете [magenta]{spell.spell_name}[/magenta]!")
 
                 if spell.spell_type == "HEALTH":
-                    player.take_health(spell.healing)
-                    print(f"[green]Восстановлено {spell.healing:.2f} HP[/green]")
+                    heal_amount = spell.healing * (1 + player.wisdom/100)
+                    player.take_health(heal_amount)
+                    print(f"[green]Восстановлено {heal_amount:.2f} HP[/green]")
                 elif spell.spell_type == "MANA":
-                    player.mana += spell.mana
-                    print(f"[cyan]Восстановлено {spell.mana:.2f} маны[/cyan]")
+                    mana_amount = spell.mana * (1 + player.wisdom/100)
+                    player.mana = min(player.max_mana, player.mana + mana_amount)
+                    print(f"[cyan]Восстановлено {mana_amount:.2f} маны[/cyan]")
                 elif spell.spell_type == "ATTACK":
-                    damage = spell.spell_damage
+                    damage = spell.spell_damage * (1 + player.wisdom/100)
 
                     if spell.element:
                         resistance = enemy.element_resistances.get(spell.element, 0)
@@ -379,13 +386,9 @@ def battle(player, enemy=None):
                         damage *= damage_mod
 
                         if resistance > 0:
-                            print(
-                                f"[yellow]Враг устойчив к {spell.element}![/yellow] Урон уменьшен"
-                            )
+                            print(f"[yellow]Враг устойчив к {spell.element}![/yellow] Урон уменьшен")
                         elif resistance < 0:
-                            print(
-                                f"[red]Враг уязвим к {spell.element}![/red] Урон увеличен"
-                            )
+                            print(f"[red]Враг уязвим к {spell.element}![/red] Урон увеличен")
 
                     enemy.take_damage(damage)
                     print(f"Вы нанесли [bold red]{damage:.2f} урона врагу")
@@ -397,32 +400,48 @@ def battle(player, enemy=None):
             if player.class_ability_available:
                 player.use_class_ability(enemy)
                 player.class_ability_available = False
-                print(
-                    f"[bold cyan]Вы использовали {player.player_class} умение![/bold cyan]"
-                )
+                print(f"[bold cyan]Вы использовали {player.player_class} умение![/bold cyan]")
             else:
                 print("[red]Особое умение недоступно![/red]")
+        elif act == "8":
+            print(f"[bold]Анализ врага:[/bold] {enemy.name}")
+            print(f"Здоровье: {enemy.hp:.1f}/{enemy.max_hp:.1f}")
+            print(f"Урон: {enemy.damage:.1f}")
+            print("Устойчивости:")
+            for element, resist in enemy.element_resistances.items():
+                if resist != 0:
+                    color = "red" if resist < 0 else "yellow"
+                    print(f"- {element}: [{color}]{resist}%[/{color}]")
+            continue
 
         print(f"\n{'-' * 64}\n")
 
-        dmg = enemy.damage_attack
-        dodge_chance = 0
-        for ability in player.passive_abilities:
-            if ability.param == "dodge_chance":
-                dodge_chance += ability.value * 100
+        # ИИ врага
+        enemy_action = enemy.choose_action(player)
+        if enemy_action == "attack":
+            dmg = enemy.damage_attack
+            dodge_chance = 0
+            for ability in player.passive_abilities:
+                if ability.param == "dodge_chance":
+                    dodge_chance += ability.value * 100
 
-        if randint(1, 100) <= dodge_chance:
-            print(f"[green]Вы уклонились от атаки {enemy.name}![/green]")
-        else:
-            player.take_damage(dmg)
-            print(f"{enemy.name} [red bold]нанес вам {dmg:.2f} урона![/red bold]")
+            if randint(1, 100) <= dodge_chance:
+                print(f"[green]Вы уклонились от атаки {enemy.name}![/green]")
+            else:
+                player.take_damage(dmg)
+                print(f"{enemy.name} [red bold]нанес вам {dmg:.2f} урона![/red bold]")
+        elif enemy_action == "heal":
+            heal_amount = enemy.max_hp * 0.15
+            enemy.take_health(heal_amount)
+            print(f"{enemy.name} [green]восстановил {heal_amount:.2f} HP![/green]")
+        elif enemy_action == "ability":
+            ability = enemy.use_ability(player)
+            print(ability)
 
         for key, value in enemy.negative_effects.items():
             effect_damage = value * randint(80, 120) / 100
             enemy.take_damage(effect_damage)
-            print(
-                f'Эффект "{key.split("@")[0]}" [red italic]нанес {effect_damage:.2f} урона {enemy.name}[/red italic]'
-            )
+            print(f'Эффект "{key.split("@")[0]}" [red italic]нанес {effect_damage:.2f} урона {enemy.name}[/red italic]')
 
         print(f"\n{'-' * 64}\n")
 
@@ -440,21 +459,21 @@ def battle(player, enemy=None):
 
         player.money += loot
         player.xp += xp_gain
-        player.hp += player.max_hp * 0.03
+        player.hp += player.max_hp * 0.05
         player.class_ability_available = True
+        player.stats["enemies_killed"] += 1
 
-        if "некроманты" in player.quests and not player.quests["некроманты"].completed:
-            if "скелет" in enemy.name.lower():
-                player.quests["некроманты"].progress += 1
-                if player.quests["некроманты"].progress >= 5:
-                    player.complete_quest("некроманты")
+        # Автопроверка квестов
+        for quest in player.quests.values():
+            if not quest.completed:
+                if quest.check_completion(enemy, player):
+                    player.complete_quest(quest.id)
     else:
         print("[red]Вы проиграли бой![/red]")
-        player.money = max(0, player.money * 0.7)
-        player.xp = max(0, player.xp * 0.8)
+        player.money = max(0, player.money * 0.8)
+        player.xp = max(0, player.xp * 0.9)
         print("[red]Вы потеряли часть денег и опыта![/red]")
         player.class_ability_available = True
-
 
 def save_game(player):
     if not os.path.exists("saves"):
@@ -480,25 +499,16 @@ def save_game(player):
         "armor": player.equipment["armor"].name if player.equipment["armor"] else "",
         "story_progress": player.story_progress,
         "inventory": list(player.inventory.keys()),
-        "quests": {
-            qid: {"completed": q.completed, "progress": q.progress}
-            for qid, q in player.quests.items()
-        },
+        "quests": {qid: q.to_dict() for qid, q in player.quests.items()},
         "factions": player.factions,
         "crafting_materials": player.crafting_materials,
-        "stats": {
-            "enemies_killed": player.stats["enemies_killed"],
-            "quests_completed": player.stats["quests_completed"],
-            "gold_earned": player.stats["gold_earned"],
-            "damage_dealt": player.stats["damage_dealt"],
-        },
+        "stats": player.stats,
     }
 
     with open(filename, "w") as f:
         json.dump(data, f, indent=2)
 
     print(f"[green]Игра сохранена в {filename}[/green]")
-
 
 def load_game():
     if not os.path.exists("saves"):
@@ -541,15 +551,12 @@ def load_game():
         player.story_progress = data.get("story_progress", 0)
         player.factions = data.get("factions", FRACTIONS.copy())
         player.crafting_materials = data.get("crafting_materials", {})
-        player.stats = data.get(
-            "stats",
-            {
-                "enemies_killed": 0,
-                "quests_completed": 0,
-                "gold_earned": 0,
-                "damage_dealt": 0,
-            },
-        )
+        player.stats = data.get("stats", {
+            "enemies_killed": 0,
+            "quests_completed": 0,
+            "gold_earned": 0,
+            "damage_dealt": 0,
+        })
 
         if data["weapon"]:
             player.equipment["weapon"] = Weapon(data["weapon"], 10)
@@ -558,9 +565,7 @@ def load_game():
 
         for item_name in data.get("inventory", []):
             if "Зелье" in item_name:
-                player.inventory[item_name] = Item(
-                    item_name, "consumable", randint(20, 50)
-                )
+                player.inventory[item_name] = Item(item_name, "consumable", randint(20, 50))
             elif any(x in item_name for x in ["меч", "топор", "щит"]):
                 player.inventory[item_name] = Weapon(item_name, randint(5, 15))
             else:
@@ -568,15 +573,7 @@ def load_game():
 
         for qid, qdata in data.get("quests", {}).items():
             if qid in QUESTS:
-                quest_data = QUESTS[qid]
-                quest = Quest(
-                    name=quest_data["name"],
-                    description=quest_data["description"],
-                    reward=quest_data["reward"],
-                    required=quest_data.get("required", 1),
-                )
-                quest.completed = qdata["completed"]
-                quest.progress = qdata["progress"]
+                quest = Quest.from_dict(qdata, qid)
                 player.quests[qid] = quest
 
         print(f"[green]Игра загружена: {player.name}[/green]")
@@ -585,31 +582,33 @@ def load_game():
         print(f"[red]Ошибка загрузки: {e}[/red]")
         return None
 
-
 def craft_items(player):
     if not player.crafting_materials:
         print("[red]У вас нет материалов для крафта[/red]")
         return
 
     print("[bold]Доступные рецепты:[/bold]")
-    for i, (item_name, recipe) in enumerate(CRAFT_RECIPES.items(), 1):
+    recipes = list(CRAFT_RECIPES.items())
+    for i, (item_name, recipe) in enumerate(recipes, 1):
         materials = ", ".join([f"{mat} x{count}" for mat, count in recipe.items()])
         print(f"{i}. {item_name} - {materials}")
 
     choice = IntPrompt.ask(
-        "Выберите предмет для крафта",
-        choices=[str(i) for i in range(0, len(CRAFT_RECIPES) + 1)],
+        "Выберите предмет для крафта (0 - отмена)",
+        choices=[str(i) for i in range(0, len(recipes) + 1)],
         default=0,
         case_sensitive=False,
     )
-    item_name = list(CRAFT_RECIPES.keys())[int(choice) - 1]
 
-    if choice != 0:
-        if player.craft_item(item_name):
-            print(f"[green]Вы успешно скрафтили {item_name}![/green]")
-        else:
-            print("[red]Недостаточно материалов[/red]")
+    if choice == 0:
+        return
 
+    item_name, recipe = recipes[choice-1]
+
+    if player.craft_item(item_name):
+        print(f"[green]Вы успешно скрафтили {item_name}![/green]")
+    else:
+        print("[red]Недостаточно материалов[/red]")
 
 def talk_to_npc(player, npc_type):
     if npc_type not in DIALOGUES:
@@ -622,7 +621,8 @@ def talk_to_npc(player, npc_type):
             input("Нажмите Enter чтобы продолжить...")
 
     if npc_type == "капитан_стражи":
-        player.complete_quest("начало")
+        if "начало" in player.quests and not player.quests["начало"].completed:
+            player.complete_quest("начало")
         if "некроманты" not in player.quests:
             player.add_quest("некроманты")
             print("[green]Получен новый квест: Угроза некромантов[/green]")
@@ -643,13 +643,10 @@ def talk_to_npc(player, npc_type):
             player.add_quest("некромантия")
             print("[green]Получен новый квест: Тайны некромантии[/green]")
 
-
 def main():
     clear()
     loader.print_resource_content("logo", colors=LOGO_COLORS, background="black")
-    print(
-        "Мир Тандерхейма - мрачный мир, где древние силы зла вырвались из Цитадели Тьмы. Только вы можете спасти этот мир..."
-    )
+    print("Мир Тандерхейма - мрачный мир, где древние силы зла вырвались из Цитадели Тьмы. Только вы можете спасти этот мир...")
     print(choice(ACTIONS))
     input("Нажмите Enter чтобы продолжить...")
 
@@ -669,12 +666,8 @@ def main():
 
     if action == "1":
         name = Prompt.ask("Ваше имя", default="Альфанелло")
-        race = Prompt.ask(
-            "Раса", choices=RACES, default="человек", case_sensitive=False
-        )
-        player_class = Prompt.ask(
-            "Класс", choices=CLASSES, default="воин", case_sensitive=False
-        )
+        race = Prompt.ask("Раса", choices=RACES, default="человек", case_sensitive=False)
+        player_class = Prompt.ask("Класс", choices=CLASSES, default="воин", case_sensitive=False)
         count = 15
         current_points = count
 
@@ -686,42 +679,36 @@ def main():
                 choices=[str(i) for i in range(0, count)],
                 case_sensitive=False,
             )
-            current_points -= power
+            current_points -= int(power)
             agility = IntPrompt.ask(
                 f"{current_points}/{count} Ловкость (влияет на уклонение)",
                 default=3,
                 choices=[str(i) for i in range(0, count)],
                 case_sensitive=False,
             )
-            current_points -= agility
+            current_points -= int(agility)
             wisdom = IntPrompt.ask(
                 f"{current_points}/{count} Мудрость (влияет на ману)",
                 default=2,
                 choices=[str(i) for i in range(0, count)],
                 case_sensitive=False,
             )
-            current_points -= wisdom
+            current_points -= int(wisdom)
 
             if current_points != 0:
-                print(
-                    f"Вы неверно распределили очки. Вы распределили {current_points} из {count}"
-                )
+                print(f"Вы неверно распределили очки. Осталось: {current_points}/{count}")
                 current_points = count
             else:
                 break
 
-        player = Player(name, race, player_class, power, agility, wisdom)
+        player = Player(name, race, player_class, int(power), int(agility), int(wisdom))
 
     clear()
 
     while True:
         player.terrain = choice(TERRAINS)
         print_player_panel(player)
-        print(
-            Panel(
-                f"[bold]Прогресс истории:[/bold] [cyan]{player.get_story_progress()}[/cyan]"
-            )
-        )
+        print(Panel(f"[bold]Прогресс истории:[/bold] [cyan]{player.get_story_progress()}[/cyan]"))
         print(Panel(f"[bold]Локация:[/bold] [yellow]{player.terrain}[/yellow]"))
 
         actions = [
@@ -739,7 +726,7 @@ def main():
         print(Panel("\n".join(actions)))
         action = Prompt.ask(
             "Выберите действие",
-            choices=["0", "1", "2", "3", "4", "5", "6", "7", "8"],
+            choices=["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"],
             default="1",
             case_sensitive=False,
         )
@@ -748,6 +735,8 @@ def main():
             if Confirm.ask("Точно выйти из игры?"):
                 print("До новых встреч!")
                 break
+        if action == "9":
+            player.money += 10000
         elif action == "1":
             event_chance = randint(1, 10)
             terrain_effects = TERRAIN_EFFECTS.get(player.terrain, {})
@@ -782,46 +771,36 @@ def main():
                     if Confirm.ask("Посетить магазин?", case_sensitive=False):
                         shop(player)
             elif event_chance == 6:
-                money = randint(5, 50) * player.lvl
+                money = randint(5, 40) * player.lvl
                 print(f"Вы нашли [yellow]{money}[/yellow] монет!")
                 player.money += money
                 player.stats["gold_earned"] += money
             elif event_chance == 7:
                 material = choice(["травы", "железо", "кожа", "кристалл"])
                 amount = randint(1, 5)
-                player.crafting_materials[material] = (
-                    player.crafting_materials.get(material, 0) + amount
-                )
+                player.crafting_materials[material] = player.crafting_materials.get(material, 0) + amount
                 print(f"Вы нашли {amount} единиц материала: [green]{material}[/green]")
             elif event_chance == 8:
                 if player.equipment["weapon"] and player.equipment["weapon"].level < 9:
-                    price = randint(50, 200) * player.lvl
-                    print(
-                        f"Кузнец предлагает улучшить ваше оружие за [yellow]{price}[/yellow] монет"
-                    )
+                    price = randint(40, 150) * player.lvl
+                    print(f"Кузнец предлагает улучшить ваше оружие за [yellow]{price}[/yellow] монет")
 
                     if Confirm.ask("Улучшить оружие?", case_sensitive=False):
                         if player.money >= price:
                             player.money -= price
                             player.equipment["weapon"].level_up()
-                            print(
-                                f"[green]Оружие улучшено до уровня {player.equipment['weapon'].level}![/green]"
-                            )
+                            player.damage = (player.power + player.equipment["weapon"].value) * DAMAGE_MULTIPLIER
+                            print(f"[green]Оружие улучшено до уровня {player.equipment['weapon'].level}![/green]")
                         else:
                             print("[red]Недостаточно денег[/red]")
                 else:
                     print("Ваше оружие уже максимального уровня или отсутствует")
             else:
                 print(choice(ACTIONS))
-                if (
-                    "ловушки" in terrain_effects
-                    and randint(1, 100) <= terrain_effects["ловушки"] * 100
-                ):
-                    trap_damage = player.max_hp * 0.15
+                if "ловушки" in terrain_effects and randint(1, 100) <= terrain_effects["ловушки"] * 100:
+                    trap_damage = player.max_hp * 0.1
                     player.take_damage(trap_damage)
-                    print(
-                        f"[red]Вы попали в ловушку! Получено {trap_damage:.2f} урона[/red]"
-                    )
+                    print(f"[red]Вы попали в ловушку! Получено {trap_damage:.2f} урона[/red]")
 
         elif action == "2":
             shop(player)
@@ -831,11 +810,7 @@ def main():
             if player.quests:
                 print("[bold]Активные квесты:[/bold]")
                 for qid, quest in player.quests.items():
-                    status = (
-                        "[green]Завершен[/green]"
-                        if quest.completed
-                        else f"[yellow]В процессе ({quest.progress}/{quest.required})[/yellow]"
-                    )
+                    status = "[green]Завершен[/green]" if quest.completed else f"[yellow]В процессе ({quest.progress}/{quest.required})[/yellow]"
                     print(f"- {quest.name}: {quest.description} {status}")
             else:
                 print("У вас нет активных квестов")
@@ -843,23 +818,14 @@ def main():
             print("[bold]Репутация с фракциями:[/bold]")
             for faction, data in player.factions.items():
                 relation = data["отношение"]
-                color = (
-                    "green" if relation >= 70 else "yellow" if relation >= 40 else "red"
-                )
+                color = "green" if relation >= 70 else "yellow" if relation >= 40 else "red"
                 print(f"- {faction}: [{color}]{relation}[/{color}]")
         elif action == "6":
             craft_items(player)
         elif action == "7":
             npc = Prompt.ask(
                 "Выберите NPC",
-                choices=[
-                    "капитан_стражи",
-                    "гильдия_магов",
-                    "воровская_гильдия",
-                    "друид",
-                    "некромант",
-                    "отмена",
-                ],
+                choices=["капитан_стражи", "гильдия_магов", "воровская_гильдия", "друид", "некромант", "отмена"],
                 default="отмена",
                 case_sensitive=False,
             )
@@ -880,9 +846,7 @@ def main():
                     item = player.inventory[item_use]
                     if item.type == "consumable":
                         player.take_health(item.value)
-                        print(
-                            f"[green]Использовано {item_use}! Восстановлено {item.value} HP[/green]"
-                        )
+                        print(f"[green]Использовано {item_use}! Восстановлено {item.value} HP[/green]")
                         player.drop_item(item_use)
                     elif item.type == "weapon" or item.type == "armor":
                         if player.equip_item(item_use):
@@ -895,7 +859,6 @@ def main():
 
         input("\nНажмите Enter чтобы продолжить...")
         clear()
-
 
 if __name__ == "__main__":
     main()

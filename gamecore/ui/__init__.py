@@ -3,19 +3,15 @@ from rich.panel import Panel
 from rich import print
 from rich.progress import ProgressBar
 
-
 def clear():
     os.system("cls" if os.name == "nt" else "clear")
-
 
 def print_player_panel(player, skip_submenu: bool = False):
     hp_percent = player.hp / player.max_hp if player.max_hp > 0 else 0
     mana_percent = player.mana / player.max_mana if player.max_mana > 0 else 0
 
     hp_color = "green" if hp_percent > 0.6 else "yellow" if hp_percent > 0.3 else "red"
-    mana_color = (
-        "cyan" if mana_percent > 0.6 else "blue" if mana_percent > 0.3 else "magenta"
-    )
+    mana_color = "cyan" if mana_percent > 0.6 else "blue" if mana_percent > 0.3 else "magenta"
 
     hp_bar = f"[{hp_color}]{'█' * int(20 * hp_percent)}[/{hp_color}]{'░' * int(20 * (1 - hp_percent))}"
     mana_bar = f"[{mana_color}]{'█' * int(20 * mana_percent)}[/{mana_color}]{'░' * int(20 * (1 - mana_percent))}"
@@ -39,37 +35,19 @@ def print_player_panel(player, skip_submenu: bool = False):
         return
 
     passive_abilities = (
-        "\n".join(
-            [
-                f"[bold cyan]{ability.name}[/bold cyan] - {ability.desc}"
-                for ability in player.passive_abilities
-            ]
-        )
-        or "Нет"
+        "\n".join([f"[bold cyan]{ability.name}[/bold cyan] - {ability.desc}" for ability in player.passive_abilities]) or "Нет"
     )
 
     inventory = (
-        "\n".join(
-            [f"[bold blue]{item_name}[/bold blue]" for item_name in player.inventory]
-        )
-        or "Пусто"
+        "\n".join([f"[bold blue]{item_name}[/bold blue]" for item_name in player.inventory]) or "Пусто"
     )
 
     spells = "\n".join(
-        [
-            f"[bold magenta]{name}[/bold magenta] - {spell.spell_desc} ({spell.mana_cost:.2f} маны)"
-            for name, spell in player.spells.items()
-        ]
+        [f"[bold magenta]{name}[/bold magenta] - {spell.spell_desc} ({spell.mana_cost:.2f} маны)" for name, spell in player.spells.items()]
     )
 
     materials = (
-        "\n".join(
-            [
-                f"[bold green]{mat}[/bold green]: {count}"
-                for mat, count in player.crafting_materials.items()
-            ]
-        )
-        or "Нет"
+        "\n".join([f"[bold green]{mat}[/bold green]: {count}" for mat, count in player.crafting_materials.items()]) or "Нет"
     )
 
     sub_panel = (

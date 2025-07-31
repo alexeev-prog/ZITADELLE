@@ -1,3 +1,15 @@
+commit 52232d519818718c02c879ad5466b17e5633cc85
+Author: Alexeev Bronislav <alexeev.dev@mail.ru>
+Date:   Thu Jul 31 10:13:47 2025 +0700
+
+    fix
+
+commit 81f0bf5e4befd8d27f7d84144805037354feafcc
+Author: Alexeev Bronislav <alexeev.dev@mail.ru>
+Date:   Thu Jul 31 09:27:25 2025 +0700
+
+    update mechanics, UI, fix bugs
+
 commit a78eff45e52dcbae68165fb16710faf641bc9390
 Author: Alexeev Bronislav <alexeev.dev@mail.ru>
 Date:   Thu Jul 31 05:14:09 2025 +0700

@@ -3,10 +3,8 @@ from random import randint, choice
 from gamecore.constants import *
 from rich import print
 
-
 def round_value(value):
     return round(value, 2)
-
 
 @dataclass
 class AttackSpell:
@@ -17,7 +15,6 @@ class AttackSpell:
     element: str = None
     spell_type: str = "ATTACK"
 
-
 @dataclass
 class HealthSpell:
     spell_name: str
@@ -25,7 +22,6 @@ class HealthSpell:
     mana_cost: float
     healing: float
     spell_type: str = "HEALTH"
-
 
 @dataclass
 class ManaSpell:
@@ -35,7 +31,6 @@ class ManaSpell:
     spell_type: str = "MANA"
     mana_cost: float = 0.0
 
-
 @dataclass
 class PassiveAbility:
     name: str
@@ -43,16 +38,55 @@ class PassiveAbility:
     param: str
     value: any
 
-
-@dataclass
 class Quest:
-    name: str
-    description: str
-    reward: dict
-    completed: bool = False
-    progress: int = 0
-    required: int = 1
+    def __init__(self, id: str, name: str, description: str, reward: dict, required: int = 1):
+        self.id = id
+        self.name = name
+        self.description = description
+        self.reward = reward
+        self.completed: bool = False
+        self.progress: int = 0
+        self.required: int = required
 
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "reward": self.reward,
+            "completed": self.completed,
+            "progress": self.progress,
+            "required": self.required
+        }
+
+    @classmethod
+    def from_dict(cls, data, qid):
+        quest = cls(
+            qid,
+            data["name"],
+            data["description"],
+            data["reward"],
+            data.get("required", 1)
+        )
+        quest.completed = data["completed"]
+        quest.progress = data["progress"]
+        return quest
+
+    def check_completion(self, enemy, player):
+        if self.completed:
+            return False
+
+        if self.id == "некроманты":
+            if "скелет" in enemy.name.lower():
+                self.progress += 1
+        elif self.id == "природа":
+            if "вредитель" in enemy.name.lower():
+                self.progress += 1
+
+        if self.progress >= self.required:
+            self.completed = True
+            return True
+        return False
 
 class Item:
     def __init__(self, name: str, item_type: str, value: int = 0, element: str = None):
@@ -61,23 +95,21 @@ class Item:
         self.value = value
         self.element = element
 
-
 class Weapon(Item):
     def __init__(
         self,
         name: str,
         damage: int,
         level: int = 1,
-        initial_brokenness=0.0,
-        breaking_value: float = 1.0,
+        durability=100.0,
         element: str = None,
         crit_chance: float = 0.05,
     ):
         super().__init__(name, "weapon", damage, element)
-        self.initial_brokenness = initial_brokenness
-        self.breaking_value = breaking_value
+        self.durability = min(100.0, max(0.0, durability))
         self.level = level
         self.crit_chance = crit_chance
+        self.max_durability = 100.0
 
         level_prefixes = {
             1: "Поломанный",
@@ -94,45 +126,40 @@ class Weapon(Item):
         self.name = f"{level_prefixes.get(self.level, '')} {self.name}"
 
         try:
-            self.value = max(
-                1, round_value(damage * level / max(1, self.initial_brokenness / 10))
-            )
+            self.value = max(1, round_value(damage * level * (self.durability/100)))
         except ZeroDivisionError:
             self.value = 1
 
-        self.name = f"{self.name} ({self.get_brokenness_state()})"
         if self.element:
             self.name += f" [{self.element}]"
 
-    def get_brokenness_state(self):
-        if self.initial_brokenness == 0.0:
+    def get_durability_state(self):
+        if self.durability >= 90:
             return "Идеал"
-        elif 0 < self.initial_brokenness <= 25.0:
+        elif self.durability >= 70:
             return "Как новый"
-        elif 25.0 < self.initial_brokenness <= 50.0:
+        elif self.durability >= 50:
             return "Б/У"
-        elif 50.0 < self.initial_brokenness <= 75.0:
+        elif self.durability >= 30:
             return "Старый"
-        elif 75.0 < self.initial_brokenness <= 90.0:
+        elif self.durability >= 10:
             return "Разваливающийся"
         else:
             return "Сломанный"
 
     def use(self):
-        self.initial_brokenness += self.breaking_value
-        self.value = max(1, self.value * 0.99)
+        self.durability = max(0, self.durability - randint(1, 3))
+        self.value = max(1, self.value * (self.durability/100))
         return self.value
 
     def repair(self):
-        self.initial_brokenness = max(0, self.initial_brokenness - 30)
+        self.durability = min(100, self.durability + 40)
         self.value *= 1.1
-        self.name = " ".join(self.name.split(" ")[1:])
-        self.name = f"{self.name} ({self.get_brokenness_state()})"
 
     def level_up(self):
         if self.level < 9:
             self.level += 1
-            self.value *= 1.2
+            self.value *= 1.25
             level_prefixes = {
                 1: "Поломанный",
                 2: "Ржавый",
@@ -144,10 +171,7 @@ class Weapon(Item):
                 8: "Мифический",
                 9: "Легендарный",
             }
-            self.name = (
-                f"{level_prefixes.get(self.level, '')} {self.name.split(' ', 1)[1]}"
-            )
-
+            self.name = f"{level_prefixes.get(self.level, '')} {self.name.split(' ', 1)[1]}"
 
 class Armor(Item):
     def __init__(
@@ -157,39 +181,18 @@ class Armor(Item):
         self.armor_type = armor_type
         self.element_resist = element_resist or {}
 
-
 class Enemy:
     def __init__(self, player, name: str, terrain: str = None):
         self.player = player
         self.name = name
         self.terrain = terrain or choice(TERRAINS)
         self.danger_level = randint(1, min(11, max(1, player.lvl // 2)))
-        self.element_resistances = {elem: randint(-50, 50) for elem in ELEMENTS}
+        self.element_resistances = {elem: randint(-30, 30) for elem in ELEMENTS}
         self.crit_chance = 0.1
         self.crit_multiplier = 1.5
-
-        danger_prefixes = {
-            2: "Злой ",
-            3: "Гига",
-            4: "Кровавый ",
-            5: "Темный ",
-            6: "Чернолорд ",
-            7: "Лич ",
-            8: "Владыка личей ",
-            9: "Архилич ",
-            10: "Владыка хаоса ",
-            11: "Владыка хаоса ",
-        }
-
-        self.name = f"{danger_prefixes.get(self.danger_level, '')}{name}"
-        self.hp = max(
-            50,
-            (randint(15, 60) * self.player.lvl * self.danger_level * DAMAGE_MULTIPLIER),
-        )
-        self.damage = max(
-            3,
-            (randint(3, 25) * self.player.lvl * self.danger_level * DAMAGE_MULTIPLIER),
-        )
+        self.max_hp = max(50, (randint(15, 60) * self.player.lvl * self.danger_level * DAMAGE_MULTIPLIER))
+        self.hp = self.max_hp
+        self.damage = max(3, (randint(3, 25) * self.player.lvl * self.danger_level * DAMAGE_MULTIPLIER))
         self.negative_effects = {}
         self.apply_terrain_effects()
         self.abilities = self.get_enemy_abilities()
@@ -202,6 +205,8 @@ class Enemy:
             abilities.append("poison_cloud")
         if "некромант" in self.name.lower():
             abilities.append("summon_skeleton")
+        if "лиц" in self.name.lower():
+            abilities.append("life_drain")
         return abilities
 
     def apply_terrain_effects(self):
@@ -213,26 +218,11 @@ class Enemy:
                 self.hp = round_value(self.hp * (1 + value))
 
     def apply_negative_effect(self, effect_name: str, effect_damage: str):
-        self.negative_effects[f"{effect_name}@{len(self.negative_effects)}"] = (
-            effect_damage
-        )
+        self.negative_effects[f"{effect_name}@{len(self.negative_effects)}"] = effect_damage
 
     @property
     def damage_attack(self):
         base_damage = randint(int(self.damage * 0.8), int(self.damage * 1.2))
-
-        if self.abilities and randint(1, 100) <= 30:
-            ability = choice(self.abilities)
-            if ability == "fire_breath":
-                base_damage *= 1.5
-                print(f"[red]{self.name} использует Огненное дыхание![/red]")
-            elif ability == "poison_cloud":
-                base_damage *= 0.8
-                self.apply_negative_effect("Яд", base_damage * 0.1)
-                print(f"[green]{self.name} создает Ядовитое облако![/green]")
-            elif ability == "summon_skeleton":
-                self.hp += self.hp * 0.2
-                print(f"[cyan]{self.name} призывает скелета![/cyan]")
 
         crit_roll = randint(1, 100)
         if crit_roll <= (self.crit_chance * 100):
@@ -243,11 +233,37 @@ class Enemy:
         self.hp = round_value(max(0, self.hp - damage))
 
     def take_health(self, health: float):
-        self.hp = round_value(self.hp + health)
+        self.hp = round_value(min(self.max_hp, self.hp + health))
 
     def is_dead(self):
         return self.hp <= 0
 
+    def choose_action(self, player):
+        hp_percent = self.hp / self.max_hp
+        if hp_percent < 0.3 and randint(1, 100) > 70 and "heal" in self.abilities:
+            return "heal"
+        if self.abilities and randint(1, 100) > 60:
+            return "ability"
+        return "attack"
+
+    def use_ability(self, player):
+        ability = choice(self.abilities)
+        if ability == "fire_breath":
+            damage = self.damage * 1.8
+            player.take_damage(damage)
+            return f"[red]{self.name} использует Огненное дыхание! Нанесено {damage:.2f} урона![/red]"
+        elif ability == "poison_cloud":
+            self.apply_negative_effect("Яд", self.damage * 0.15)
+            return f"[green]{self.name} создает Ядовитое облако![/green]"
+        elif ability == "summon_skeleton":
+            self.hp += self.max_hp * 0.2
+            return f"[cyan]{self.name} призывает скелета! Восстановлено {self.max_hp * 0.2:.2f} HP[/cyan]"
+        elif ability == "life_drain":
+            drain = player.hp * 0.15
+            player.take_damage(drain)
+            self.take_health(drain)
+            return f"[purple]{self.name} высасывает {drain:.2f} HP из вас![/purple]"
+        return f"[yellow]{self.name} использует неизвестную способность![/yellow]"
 
 class Player:
     def __init__(
@@ -255,9 +271,9 @@ class Player:
         name: str,
         race: str,
         player_class: str,
-        power: int,
-        agility: int,
-        wisdom: int,
+        power: int = 5,
+        agility: int = 3,
+        wisdom: int = 2,
         initial_hp: float = 100.0,
         initial_weapon: Weapon = None,
     ):
@@ -292,22 +308,22 @@ class Player:
         self.wisdom = wisdom
 
         race_bonuses = {
-            "орк": {"power": 3, "hp_mult": 1.3},
-            "эльф": {"wisdom": 3, "mana_mult": 1.5},
-            "хоббит": {"agility": 3, "crit_chance": 0.1},
+            "орк": {"power": 3, "hp_mult": 1.25},
+            "эльф": {"wisdom": 3, "mana_mult": 1.5, "agility": 1},
+            "хоббит": {"agility": 3, "crit_chance": 0.08},
             "человек": {"power": 1, "wisdom": 1, "agility": 1},
-            "гном": {"wisdom": 2, "hp_mult": 1.2},
-            "дварф": {"power": 2, "hp_mult": 1.4},
-            "демон": {"power": 4, "wisdom": 2, "hp_mult": 1.1},
+            "гном": {"wisdom": 2, "hp_mult": 1.15},
+            "дварф": {"power": 2, "hp_mult": 1.3},
+            "демон": {"power": 3, "wisdom": 1, "hp_mult": 1.1},
         }
 
         class_bonuses = {
-            "воин": {"power": 3, "hp_mult": 1.4},
-            "маг": {"wisdom": 4, "mana_mult": 2.0},
+            "воин": {"power": 3, "hp_mult": 1.3},
+            "маг": {"wisdom": 4, "mana_mult": 2.0, "power": -1},
             "лучник": {"agility": 4, "crit_chance": 0.15},
             "плут": {"agility": 3, "crit_multiplier": 0.3},
             "жрец": {"wisdom": 3, "mana_mult": 1.5},
-            "некромант": {"wisdom": 5, "power": -1},
+            "некромант": {"wisdom": 4, "power": -1},
             "паладин": {"power": 2, "wisdom": 2, "hp_mult": 1.2},
             "друид": {"wisdom": 3, "agility": 2, "mana_mult": 1.3},
         }
@@ -325,12 +341,8 @@ class Player:
         self.crit_chance += bonus.get("crit_chance", 0)
         self.crit_multiplier += bonus.get("crit_multiplier", 0)
 
-        self.hp_mult = bonus.get("hp_mult", 1.0) * race_bonuses.get(self.race, {}).get(
-            "hp_mult", 1.0
-        )
-        self.mana_mult = bonus.get("mana_mult", 1.0) * race_bonuses.get(
-            self.race, {}
-        ).get("mana_mult", 1.0)
+        self.hp_mult = bonus.get("hp_mult", 1.0) * race_bonuses.get(self.race, {}).get("hp_mult", 1.0)
+        self.mana_mult = bonus.get("mana_mult", 1.0) * race_bonuses.get(self.race, {}).get("mana_mult", 1.0)
 
         self.hp = round_value(self.hp * self.hp_mult)
         self.max_hp = self.hp
@@ -338,7 +350,7 @@ class Player:
         self.money = max(10, (2 * self.agility * self.lvl * 2))
 
         if not initial_weapon:
-            initial_weapon = Weapon("Медный кинжал", 10, initial_brokenness=50.0)
+            initial_weapon = Weapon("Медный кинжал", 10, durability=80.0)
         self.equipment["weapon"] = initial_weapon
         self.damage = (self.power + self.equipment["weapon"].value) * DAMAGE_MULTIPLIER
 
@@ -355,75 +367,61 @@ class Player:
 
     def use_class_ability(self, enemy=None):
         if self.player_class == "воин":
-            damage = self.damage * 2.5
+            damage = self.damage * 2.2
             enemy.take_damage(damage)
-            print(
-                f"[bold red]Сокрушительный удар![/bold red] Нанесено {damage:.2f} урона!"
-            )
+            print(f"[bold red]Сокрушительный удар![/bold red] Нанесено {damage:.2f} урона!")
         elif self.player_class == "маг":
-            self.mana += self.max_mana * 0.5
-            print("[bold cyan]Концентрация магии![/bold cyan] Восстановлено 50% маны")
+            self.mana += self.max_mana * 0.4
+            print("[bold cyan]Концентрация магии![/bold cyan] Восстановлено 40% маны")
         elif self.player_class == "лучник":
-            self.crit_chance += 0.3
-            print(
-                "[bold yellow]Точный выстрел![/bold yellow] Шанс крита увеличен на 30%"
-            )
+            self.crit_chance += 0.25
+            print("[bold yellow]Точный выстрел![/bold yellow] Шанс крита увеличен на 25%")
         elif self.player_class == "плут":
-            dodge_chance = 0
-            for ability in self.passive_abilities:
-                if ability.param == "dodge_chance":
-                    dodge_chance += ability.value * 100
-            dodge_chance += 50
-            print(
-                "[bold green]Теневой шаг![/bold green] Шанс уклонения увеличен на 50%"
-            )
+            print("[bold green]Теневой шаг![/bold green] Шанс уклонения увеличен на 40%")
         elif self.player_class == "жрец":
-            heal_amount = self.max_hp * 0.4
+            heal_amount = self.max_hp * 0.35
             self.take_health(heal_amount)
-            print(
-                f"[bold white]Божественное исцеление![/bold white] Восстановлено {heal_amount} HP"
-            )
+            print(f"[bold white]Божественное исцеление![/bold white] Восстановлено {heal_amount} HP")
         elif self.player_class == "некромант":
-            enemy.take_damage(enemy.hp * 0.2)
-            self.take_health(enemy.hp * 0.1)
-            print("[bold purple]Похищение жизни![/bold purple] Вы забрали 20% HP врага")
+            drain = enemy.hp * 0.15
+            enemy.take_damage(drain)
+            self.take_health(drain)
+            print(f"[bold purple]Похищение жизни![/bold purple] Вы забрали {drain:.2f} HP у врага")
         elif self.player_class == "паладин":
-            self.damage *= 1.5
-            print(
-                "[bold yellow]Благословение оружия![/bold yellow] Урон увеличен на 50%"
-            )
+            self.damage *= 1.4
+            print("[bold yellow]Благословение оружия![/bold yellow] Урон увеличен на 40%")
         elif self.player_class == "друид":
-            heal_amount = self.max_hp * 0.3
+            heal_amount = self.max_hp * 0.25
             self.take_health(heal_amount)
-            self.mana += self.max_mana * 0.3
-            print("[bold green]Сила природы![/bold green] Восстановлено 30% HP и маны")
+            self.mana += self.max_mana * 0.25
+            print("[bold green]Сила природы![/bold green] Восстановлено 25% HP и маны")
 
     def get_class_spells(self):
         base_spells = {
             "ФАЕРБОЛЛ": AttackSpell(
                 spell_name="Фаерболл",
                 spell_desc="Наносит огненный урон",
-                mana_cost=round_value(30.0 * self.lvl * DAMAGE_MULTIPLIER),
-                spell_damage=round_value(50.0 * self.lvl * DAMAGE_MULTIPLIER),
+                mana_cost=round_value(25.0 * self.lvl * DAMAGE_MULTIPLIER),
+                spell_damage=round_value(40.0 * self.lvl * DAMAGE_MULTIPLIER),
                 element="огонь",
             ),
             "ЛЕДЯНОЙ ШТОРМ": AttackSpell(
                 spell_name="Ледяной шторм",
                 spell_desc="Наносит ледяной урон",
-                mana_cost=round_value(25.0 * self.lvl * DAMAGE_MULTIPLIER),
-                spell_damage=round_value(40.0 * self.lvl * DAMAGE_MULTIPLIER),
+                mana_cost=round_value(20.0 * self.lvl * DAMAGE_MULTIPLIER),
+                spell_damage=round_value(35.0 * self.lvl * DAMAGE_MULTIPLIER),
                 element="лед",
             ),
             "ИСЦЕЛЕНИЕ": HealthSpell(
                 spell_name="Исцеление",
                 spell_desc="Восстанавливает здоровье",
-                mana_cost=round_value(20.0 * self.lvl * DAMAGE_MULTIPLIER),
-                healing=round_value(30.0 * self.lvl * HEALING_MULTIPLIER),
+                mana_cost=round_value(15.0 * self.lvl * DAMAGE_MULTIPLIER),
+                healing=round_value(25.0 * self.lvl * HEALING_MULTIPLIER),
             ),
             "МАЛОЕ ЗАПИТЫВАНИЕ": ManaSpell(
                 spell_name="Малое запитывание",
                 spell_desc="Восстанавливает ману",
-                mana=round_value(25.0 * self.lvl * HEALING_MULTIPLIER),
+                mana=round_value(20.0 * self.lvl * HEALING_MULTIPLIER),
             ),
         }
 
@@ -432,28 +430,28 @@ class Player:
                 "МОЛНИЯ": AttackSpell(
                     spell_name="Молния",
                     spell_desc="Наносит урон электричеством",
-                    mana_cost=round_value(40.0 * self.lvl * DAMAGE_MULTIPLIER),
-                    spell_damage=round_value(60.0 * self.lvl * DAMAGE_MULTIPLIER),
+                    mana_cost=round_value(35.0 * self.lvl * DAMAGE_MULTIPLIER),
+                    spell_damage=round_value(50.0 * self.lvl * DAMAGE_MULTIPLIER),
                     element="электричество",
                 ),
                 "ТЕЛЕПОРТАЦИЯ": ManaSpell(
                     spell_name="Телепортация",
                     spell_desc="Позволяет избежать боя",
-                    mana=round_value(50.0 * self.lvl * HEALING_MULTIPLIER),
-                    mana_cost=round_value(30.0 * self.lvl * DAMAGE_MULTIPLIER),
+                    mana=round_value(40.0 * self.lvl * HEALING_MULTIPLIER),
+                    mana_cost=round_value(25.0 * self.lvl * DAMAGE_MULTIPLIER),
                 ),
             },
             "жрец": {
                 "ВОСКРЕШЕНИЕ": HealthSpell(
                     spell_name="Воскрешение",
                     spell_desc="Восстанавливает большое количество здоровья",
-                    mana_cost=round_value(50.0 * self.lvl * DAMAGE_MULTIPLIER),
-                    healing=round_value(100.0 * self.lvl * HEALING_MULTIPLIER),
+                    mana_cost=round_value(40.0 * self.lvl * DAMAGE_MULTIPLIER),
+                    healing=round_value(80.0 * self.lvl * HEALING_MULTIPLIER),
                 ),
                 "СВЯТОЙ ЩИТ": HealthSpell(
                     spell_name="Святой щит",
                     spell_desc="Дает временную защиту",
-                    mana_cost=round_value(30.0 * self.lvl * DAMAGE_MULTIPLIER),
+                    mana_cost=round_value(25.0 * self.lvl * DAMAGE_MULTIPLIER),
                     healing=0,
                 ),
             },
@@ -461,45 +459,45 @@ class Player:
                 "ВОЗЗЫВАНИЕ МЕРТВЕЦОВ": AttackSpell(
                     spell_name="Воззвание мертвецов",
                     spell_desc="Призывает скелетов для атаки",
-                    mana_cost=round_value(60.0 * self.lvl * DAMAGE_MULTIPLIER),
-                    spell_damage=round_value(70.0 * self.lvl * DAMAGE_MULTIPLIER),
+                    mana_cost=round_value(50.0 * self.lvl * DAMAGE_MULTIPLIER),
+                    spell_damage=round_value(60.0 * self.lvl * DAMAGE_MULTIPLIER),
                     element="тьма",
                 ),
                 "ВЫСАСЫВАНИЕ ДУШИ": HealthSpell(
                     spell_name="Высасывание души",
                     spell_desc="Крадет здоровье у врага",
-                    mana_cost=round_value(40.0 * self.lvl * DAMAGE_MULTIPLIER),
-                    healing=round_value(50.0 * self.lvl * HEALING_MULTIPLIER),
+                    mana_cost=round_value(35.0 * self.lvl * DAMAGE_MULTIPLIER),
+                    healing=round_value(40.0 * self.lvl * HEALING_MULTIPLIER),
                 ),
             },
             "паладин": {
                 "СВЯЩЕННЫЙ УДАР": AttackSpell(
                     spell_name="Священный удар",
                     spell_desc="Наносит урон светом",
-                    mana_cost=round_value(35.0 * self.lvl * DAMAGE_MULTIPLIER),
-                    spell_damage=round_value(55.0 * self.lvl * DAMAGE_MULTIPLIER),
+                    mana_cost=round_value(30.0 * self.lvl * DAMAGE_MULTIPLIER),
+                    spell_damage=round_value(45.0 * self.lvl * DAMAGE_MULTIPLIER),
                     element="свет",
                 ),
                 "БЛАГОСЛОВЕНИЕ": HealthSpell(
                     spell_name="Благословение",
                     spell_desc="Исцеляет и усиливает",
-                    mana_cost=round_value(40.0 * self.lvl * DAMAGE_MULTIPLIER),
-                    healing=round_value(40.0 * self.lvl * HEALING_MULTIPLIER),
+                    mana_cost=round_value(35.0 * self.lvl * DAMAGE_MULTIPLIER),
+                    healing=round_value(35.0 * self.lvl * HEALING_MULTIPLIER),
                 ),
             },
             "друид": {
                 "ГНЕВ ПРИРОДЫ": AttackSpell(
                     spell_name="Гнев природы",
                     spell_desc="Наносит урон природной стихией",
-                    mana_cost=round_value(30.0 * self.lvl * DAMAGE_MULTIPLIER),
-                    spell_damage=round_value(45.0 * self.lvl * DAMAGE_MULTIPLIER),
+                    mana_cost=round_value(25.0 * self.lvl * DAMAGE_MULTIPLIER),
+                    spell_damage=round_value(40.0 * self.lvl * DAMAGE_MULTIPLIER),
                     element="природа",
                 ),
                 "ЦЕЛИТЕЛЬНЫЙ РОСТ": HealthSpell(
                     spell_name="Целительный рост",
                     spell_desc="Исцеляет союзников",
-                    mana_cost=round_value(25.0 * self.lvl * DAMAGE_MULTIPLIER),
-                    healing=round_value(35.0 * self.lvl * HEALING_MULTIPLIER),
+                    mana_cost=round_value(20.0 * self.lvl * DAMAGE_MULTIPLIER),
+                    healing=round_value(30.0 * self.lvl * HEALING_MULTIPLIER),
                 ),
             },
         }
@@ -515,7 +513,7 @@ class Player:
                     name="Универсал",
                     desc="Каждый гейм-мув вы получаете дополнительную ману, монеты или XP.",
                     param="random_additional_param",
-                    value=10,
+                    value=8,
                 )
             )
         elif self.race == "хоббит":
@@ -531,9 +529,9 @@ class Player:
             self.passive_abilities.append(
                 PassiveAbility(
                     name="Стойкость",
-                    desc=f"Орочье наследие сделало вас невероятно стойким. Вы можете уходить в минус на {50 * self.lvl}HP.",
+                    desc=f"Орочье наследие сделало вас невероятно стойким. Вы можете уходить в минус на {40 * self.lvl}HP.",
                     param="health_fortitude",
-                    value=50,
+                    value=40,
                 )
             )
         elif self.race == "эльф":
@@ -542,7 +540,7 @@ class Player:
                     name="Мания маны",
                     desc="Эльфийская душа позволяет вам получить ману за убийство врага.",
                     param="mana_loot",
-                    value=2,
+                    value=1.5,
                 )
             )
         elif self.race == "гном":
@@ -560,7 +558,7 @@ class Player:
                     name="Каменная кожа",
                     desc="Дварфы получают меньше урона",
                     param="damage_reduction",
-                    value=0.15,
+                    value=0.12,
                 )
             )
         elif self.race == "демон":
@@ -569,7 +567,7 @@ class Player:
                     name="Огненная аура",
                     desc="Демоны наносят дополнительный огненный урон",
                     param="fire_damage",
-                    value=10,
+                    value=8,
                 )
             )
 
@@ -579,7 +577,7 @@ class Player:
                     name="Меткий выстрел",
                     desc="Увеличивает шанс критического удара",
                     param="crit_chance",
-                    value=0.1,
+                    value=0.08,
                 )
             )
         elif self.player_class == "плут":
@@ -588,7 +586,7 @@ class Player:
                     name="Скрытность",
                     desc="Позволяет избегать урона",
                     param="dodge_chance",
-                    value=0.2,
+                    value=0.15,
                 )
             )
         elif self.player_class == "жрец":
@@ -597,7 +595,7 @@ class Player:
                     name="Божественная защита",
                     desc="Уменьшает получаемый урон",
                     param="damage_reduction",
-                    value=0.1,
+                    value=0.08,
                 )
             )
         elif self.player_class == "паладин":
@@ -606,7 +604,7 @@ class Player:
                     name="Светлая аура",
                     desc="Увеличивает сопротивление темной магии",
                     param="dark_resist",
-                    value=0.3,
+                    value=0.25,
                 )
             )
         elif self.player_class == "друид":
@@ -615,18 +613,18 @@ class Player:
                     name="Единение с природой",
                     desc="Увеличивает эффективность в природных зонах",
                     param="nature_boost",
-                    value=0.2,
+                    value=0.15,
                 )
             )
 
     def calc_additional_params(self):
         if self.race == "эльф":
-            self.damage = round_value(self.damage * 0.9)
+            self.damage = round_value(self.damage * 0.95)
         elif self.race == "орк":
-            self.damage = round_value(self.damage * 1.3)
+            self.damage = round_value(self.damage * 1.2)
         elif self.race == "хоббит":
-            self.damage = round_value(self.damage * 0.8)
-            self.mana = round_value(self.mana * 0.8)
+            self.damage = round_value(self.damage * 0.85)
+            self.mana = round_value(self.mana * 0.9)
 
     def calc_damage(self):
         base_damage = self.power + self.equipment["weapon"].value
@@ -644,21 +642,22 @@ class Player:
 
         for ability in self.passive_abilities:
             if ability.value > 0:
-                ability.value = round_value(ability.value * 1.1)
+                ability.value = round_value(ability.value * 1.08)
 
-        self.max_hp = round_value(self.max_hp * 1.2)
+        self.max_hp = round_value(self.max_hp * 1.15)
         self.hp = self.max_hp
         self.max_mana = round_value(self.max_mana * 1.2)
         self.mana = self.max_mana
+        self.power += 1
+        self.agility += 1
+        self.wisdom += 1
 
         self.spells = self.get_class_spells()
         self.xp = 0
         print(f"[bold green]Вы достигли {self.lvl} уровня![/bold green]")
 
     def apply_negative_effect(self, effect_name: str, effect_damage: str):
-        self.negative_effects[f"{effect_name}#{len(self.negative_effects)}"] = (
-            effect_damage
-        )
+        self.negative_effects[f"{effect_name}#{len(self.negative_effects)}"] = effect_damage
 
     def is_dead(self):
         return self.hp <= 0
@@ -678,8 +677,8 @@ class Player:
         self.hp = round_value(self.hp)
 
     def regen_resources(self):
-        self.hp = min(self.max_hp, self.hp + self.max_hp * 0.03)
-        self.mana = min(self.max_mana, self.mana + self.max_mana * 0.07)
+        self.hp = min(self.max_hp, self.hp + self.max_hp * 0.05)
+        self.mana = min(self.max_mana, self.mana + self.max_mana * 0.1)
         self.hp = round_value(self.hp)
         self.mana = round_value(self.mana)
 
@@ -688,9 +687,7 @@ class Player:
 
     def pickup_item(self, item: Item):
         if item.type == "material":
-            self.crafting_materials[item.name] = (
-                self.crafting_materials.get(item.name, 0) + 1
-            )
+            self.crafting_materials[item.name] = self.crafting_materials.get(item.name, 0) + 1
         else:
             self.inventory[item.name] = item
 
@@ -714,10 +711,11 @@ class Player:
         if quest_id in QUESTS and quest_id not in self.quests:
             quest_data = QUESTS[quest_id]
             self.quests[quest_id] = Quest(
-                name=quest_data["name"],
-                description=quest_data["description"],
-                reward=quest_data["reward"],
-                required=quest_data.get("required", 1),
+                quest_id,
+                quest_data["name"],
+                quest_data["description"],
+                quest_data["reward"],
+                quest_data.get("required", 1)
             )
             return True
         return False
@@ -739,9 +737,7 @@ class Player:
             if "reputation" in reward:
                 for faction, points in reward["reputation"].items():
                     if faction in self.factions:
-                        self.factions[faction]["отношение"] = min(
-                            100, self.factions[faction]["отношение"] + points
-                        )
+                        self.factions[faction]["отношение"] = min(100, self.factions[faction]["отношение"] + points)
 
             if quest_id == "начало":
                 self.story_progress = 1
@@ -751,6 +747,11 @@ class Player:
                 self.story_progress = 3
             elif quest_id == "дракон":
                 self.story_progress = 5
+
+            # Добавление следующего квеста в цепочке
+            next_quest = QUEST_CHAINS.get(quest_id)
+            if next_quest and next_quest not in self.quests:
+                self.add_quest(next_quest)
 
             return True
         return False
