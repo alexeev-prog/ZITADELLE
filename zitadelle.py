@@ -622,7 +622,7 @@ def talk_to_npc(player, npc_type):
             input("Нажмите Enter чтобы продолжить...")
 
     if npc_type == "капитан_стражи":
-        player.complete_quest('начало')
+        player.complete_quest("начало")
         if "некроманты" not in player.quests:
             player.add_quest("некроманты")
             print("[green]Получен новый квест: Угроза некромантов[/green]")
@@ -733,7 +733,7 @@ def main():
             "5 - Фракции",
             "6 - Ремесло",
             "7 - Поговорить с NPC",
-            "8 - Инвентарь"
+            "8 - Инвентарь",
         ]
 
         print(Panel("\n".join(actions)))
